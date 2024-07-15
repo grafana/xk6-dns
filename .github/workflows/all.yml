@@ -13,3 +13,6 @@ on:
 jobs:
   checks:
     uses: grafana/k6-ci/.github/workflows/all.yml@main
+    with:
+      matrix:
+        os: [ubuntu-latest]

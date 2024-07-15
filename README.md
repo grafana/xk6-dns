@@ -1,3 +1,5 @@
+DROP ME!
+
 # xk6-dns
 
 This is a DNS resolver extension for [k6](https://go.k6.io/k6). It allows you to resolve DNS names to IP addresses
