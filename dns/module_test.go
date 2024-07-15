@@ -380,6 +380,8 @@ func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer 
 		unboundRecord{testDomain, RecordTypeAAAA.String(), secondaryTestIPv6},
 	)
 
+	network := testcontainers.DockerNetwork{Name: "testcontainers"}
+
 	containerRequest := testcontainers.ContainerRequest{
 		Image: "mvance/unbound:1.20.0",
 		Files: []testcontainers.ContainerFile{
@@ -390,6 +392,7 @@ func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer 
 		},
 		ExposedPorts: []string{"53/tcp", "53/udp"},
 		WaitingFor:   wait.ForListeningPort("53/udp"),
+		Networks:     []string{network.Name},
 	}
 
 	runningContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
