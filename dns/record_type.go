@@ -10,6 +10,7 @@ import "github.com/miekg/dns"
 // The currently supported values are:
 // - A
 // - AAAA
+// - NAPTR
 //
 // The supported values are the ones that are most likely to be
 // used by the users of this extension and package, as they are
@@ -30,6 +31,7 @@ type RecordType uint16
 // Note that the RecordType enum values are explicitly typed to allow enumer
 // to detect them.
 const (
-	RecordTypeA    RecordType = RecordType(dns.TypeA)
-	RecordTypeAAAA RecordType = RecordType(dns.TypeAAAA)
+	RecordTypeA     RecordType = RecordType(dns.TypeA)
+	RecordTypeAAAA  RecordType = RecordType(dns.TypeAAAA)
+	RecordTypeNAPTR RecordType = RecordType(dns.TypeNAPTR)
 )

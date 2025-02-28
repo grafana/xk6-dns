@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/miekg/dns"
 )
@@ -90,6 +91,8 @@ func (r *Client) Resolve(
 			ips = append(ips, t.A.String())
 		case *dns.AAAA:
 			ips = append(ips, t.AAAA.String())
+		case *dns.NAPTR:
+			ips = append(ips, fmtNAPTRAnswer(t))
 		default:
 			return nil, fmt.Errorf(
 				"resolve operation failed with %w: unhandled DNS answer type %T",
@@ -111,4 +114,14 @@ func (r *Client) Lookup(ctx context.Context, hostname string) ([]string, error) 
 	}
 
 	return ips, nil
+}
+
+// Format NAPTR answer.
+func fmtNAPTRAnswer(answer *dns.NAPTR) string {
+	return strconv.Itoa(int(answer.Order)) + " " +
+		strconv.Itoa(int(answer.Preference)) + " " +
+		"\"" + answer.Flags + "\" " +
+		"\"" + answer.Service + "\" " +
+		"\"" + answer.Regexp + "\" " +
+		answer.Replacement
 }

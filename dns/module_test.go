@@ -56,6 +56,13 @@ const (
 	// testDomain to. This points to the same IP as secondaryTestIPv4, and is subject to the same routing
 	// constraints.
 	secondaryTestIPv6 = "fd61:76ff:fe12:3456:789a:bcde:f012:6789"
+
+	// testNAPTRDomain is the domain name we configure our test DNS server to resolve to the
+	// primaryTestNAPTR.
+	testNAPTRDomain = "9.8.7.6.5.4.3.2.1.0.e164.arpa."
+
+	// primaryTestNAPTR is a default NAPTR response we configure our DNS ser ver to resolve the testNAPTRDomain to.
+	primaryTestNAPTR = "100 10 \"U\" \"E2U+sip\" \"!^.*$!sip:customer-service@example.com!\" ."
 )
 
 func TestClient_Resolve(t *testing.T) {
@@ -292,6 +299,100 @@ func TestClient_Resolve(t *testing.T) {
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
 		assert.NoError(t, err)
 	})
+
+	t.Run("Resolving existing NAPTR records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
+		defer func() {
+			if err := unboundContainer.Terminate(ctx); err != nil {
+				t.Fatalf("could not stop unbound: %s", err.Error())
+			}
+		}()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		// Setting up the runtime with the necessary state to execute in the VU context
+		runtime.MoveToVUContext(&lib.State{
+			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+			Samples:        make(chan metrics.SampleContainer, 8),
+		})
+
+		testScript := `
+			const resolveResults = await dns.resolve(
+				"` + testNAPTRDomain + `",
+				"` + RecordTypeNAPTR.String() + `",
+				"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+			);
+		
+			// We sort the results to ensure that the order is consistent
+			// and we can compare the results with the expected values
+			resolveResults.sort();
+		
+			if (resolveResults.length === 0) {
+				throw "Resolving 9.8.7.6.5.4.3.2.1.0.e164.arpa. against unbound server test container returned no results, expected ['` + primaryTestNAPTR + `']"
+			}
+			
+			if (resolveResults.length !== 1) {
+				throw "Resolving 9.8.7.6.5.4.3.2.1.0.e164.arpa. against unbound server test container returned an unexpected number of results, expected 1 record, got:" + resolveResults.length
+			}
+		
+			if (resolveResults[0] !== "` + primaryTestIPv6 + `") {
+				throw "Resolving 9.8.7.6.5.4.3.2.1.0.e164.arpa. against unbound server test container returned unexpected result, expected '` + primaryTestNAPTR + `', got " + resolveResults[0]
+			}
+		
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving non-existing NAPTR records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
+		defer func() {
+			if err := unboundContainer.Terminate(ctx); err != nil {
+				t.Fatalf("could not stop unbound: %s", err.Error())
+			}
+		}()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		// Setting up the runtime with the necessary state to execute in the VU context
+		runtime.MoveToVUContext(&lib.State{
+			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+			Samples:        make(chan metrics.SampleContainer, 8),
+		})
+
+		testScript := `
+			try {
+				const resolvedResults = await dns.resolve(
+					"missing.domain",
+					"` + RecordTypeNAPTR.String() + `",
+					"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+				);
+			} catch (err) {
+				if (err.name !== "NonExistingDomain") {
+					throw "Resolving missing.domain against unbound server test container returned unexpected error, expected NonExistingDomain, got: " + err.Name
+				}
+		
+				// We expected this error, so we can return
+				return
+			}
+		
+			throw "Resolving missing.domain against unbound server test container should have thrown an error, but it didn't"
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
 }
 
 func TestClient_Lookup(t *testing.T) {
@@ -377,6 +478,7 @@ func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer 
 		unboundRecord{testDomain, RecordTypeA.String(), secondaryTestIPv4},
 		unboundRecord{testDomain, RecordTypeAAAA.String(), primaryTestIPv6},
 		unboundRecord{testDomain, RecordTypeAAAA.String(), secondaryTestIPv6},
+		unboundRecord{testNAPTRDomain, RecordTypeNAPTR.String(), primaryTestNAPTR},
 	)
 
 	network := testcontainers.DockerNetwork{Name: "testcontainers"}
