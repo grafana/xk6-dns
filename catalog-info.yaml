@@ -6,7 +6,6 @@ metadata:
   description: |
     This is a DNS resolver extension for k6. It allows you to resolve DNS names to IP addresses in your k6 scripts.
   annotations:
-    backstage.io/techdocs-ref: dir:.
     github.com/project-slug: grafana/xk6-dns
 spec:
   type: library
