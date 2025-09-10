@@ -6,7 +6,7 @@ export const options = {
 }
 
 export default async function () {
-    const resolveResults = await dns.resolve("k6.io", "A", "192.168.2.100:53");
+    const resolveResults = await dns.resolve("k6.io", "A", "1.1.1.1:53");
     // console.log(`resolved the k6.io domain using cloudflare dns servers to the following IPs: ${resolveResults}`);
 
     const lookupResults = await dns.lookup("k6.io");
