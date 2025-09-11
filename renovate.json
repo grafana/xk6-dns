@@ -20,7 +20,6 @@
       "managers": ["gomod"],
       "matchPackageNames": [
         "go.k6.io/k6",
-        "github.com/grafana/sobek"
       ],
       "groupName": "k6 ecosystem",
       "enabled": true,
