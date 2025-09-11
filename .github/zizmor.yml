@@ -1,4 +1,0 @@
-rules:
-  cache-poisoning:
-    ignore:
-      - all.yml:3

@@ -35,6 +35,8 @@ jobs:
 
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          cache: false
 
       - name: Install xk6
         uses: grafana/setup-xk6@1b678f776a14cf360de8791bd778f9dd49d8e2e4 # v1.0.0
@@ -54,6 +56,8 @@ jobs:
 
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          cache: false
 
       - name: Run tests
         run: |
