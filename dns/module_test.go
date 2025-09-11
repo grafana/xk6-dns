@@ -279,9 +279,9 @@ func TestClient_Resolve(t *testing.T) {
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
-					throw "Resolving missing.domain against unbound server test container returned unexpected error, expected NonExistingDomain, got: " + err.Name
+					throw "Resolving missing.domain against unbound server test container returned unexpected error, expected NonExistingDomain, got: " + err.name
 				}
-		
+				
 				// We expected this error, so we can return
 				return
 			}
