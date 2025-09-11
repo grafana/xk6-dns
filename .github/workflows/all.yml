@@ -10,48 +10,54 @@ on:
       - v*
   pull_request:
 
+permissions: {}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Run k6's golangci-lint CI
-        uses: grafana/k6/.github/actions/lint@master
+        uses: grafana/k6/.github/actions/lint@e4a5a88f7cc2665f36bf87bd5a592901469138c1  # v1.2.3
 
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          cache: false
+
+      - name: Install xk6
+        uses: grafana/setup-xk6@1b678f776a14cf360de8791bd778f9dd49d8e2e4 # v1.0.0
 
       - name: Check build
         run: |
-          go version
-          pwd && ls -l
-
-          go install go.k6.io/xk6/cmd/xk6@master
           MODULE_NAME=`go list -m`
-
-          GOPRIVATE="go.k6.io/k6" xk6 build \
-            --output ./k6ext \
-            --with $MODULE_NAME="."
-          ./k6ext version
+          xk6 build --with $MODULE_NAME
 
   test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          cache: false
 
       - name: Run tests
         run: |

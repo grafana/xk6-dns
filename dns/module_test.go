@@ -101,7 +101,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
 		defer func() {
 			if err := unboundContainer.Terminate(ctx); err != nil {
@@ -155,7 +155,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
 		defer func() {
 			if err := unboundContainer.Terminate(ctx); err != nil {
@@ -199,7 +199,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
 		defer func() {
 			if err := unboundContainer.Terminate(ctx); err != nil {
@@ -252,7 +252,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
 		defer func() {
 			if err := unboundContainer.Terminate(ctx); err != nil {
@@ -279,9 +279,9 @@ func TestClient_Resolve(t *testing.T) {
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
-					throw "Resolving missing.domain against unbound server test container returned unexpected error, expected NonExistingDomain, got: " + err.Name
+					throw "Resolving missing.domain against unbound server test container returned unexpected error, expected NonExistingDomain, got: " + err.name
 				}
-		
+				
 				// We expected this error, so we can return
 				return
 			}
@@ -315,7 +315,7 @@ func TestClient_Lookup(t *testing.T) {
 	t.Run("Lookup returns the system's default resolver results", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		wantIPs, err := net.DefaultResolver.LookupHost(ctx, "k6.io")
 		require.NoError(t, err)
 

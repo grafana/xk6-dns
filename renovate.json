@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "timezone": "UTC",
+  "schedule": ["at 8am on monday"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Disable updates for all dependencies by default",
+      "matchManagers": ["gomod"],
+      "enabled": false
+    },
+    {
+      "description": "GitHub Actions",
+      "managers": [
+        "github-actions"
+      ]
+    },
+    {
+      "description": "k6 core and ecosystem packages",
+      "managers": ["gomod"],
+      "matchPackageNames": [
+        "go.k6.io/k6",
+      ],
+      "groupName": "k6 ecosystem",
+      "enabled": true,
+    },
+    {
+      "description": "DNS library - critical for functionality",
+      "managers": ["gomod"],
+      "matchPackageNames": [
+        "github.com/miekg/dns"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "Testing dependencies",
+      "managers": ["gomod"],
+      "matchPackageNames": [
+        "github.com/stretchr/testify",
+        "github.com/testcontainers/testcontainers-go",
+        "github.com/docker/go-connections"
+      ],
+      "groupName": "testing dependencies",
+      "enabled": true,
+      "automerge": true,
+      "automergeType": "pr",
+      "matchUpdateTypes": ["patch", "minor"],
+    },
+    {
+      "description": "Go version updates",
+      "managers": ["gomod"],
+      "matchDepTypes": ["golang"],
+      "enabled": true,
+    }
+  ]
+}

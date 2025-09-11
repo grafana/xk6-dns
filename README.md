@@ -15,12 +15,12 @@ This extension provides two functions:
 
 ## Usage
 
-### Installation
+### Using the extension
 
 To use this extension requires using the xk6 tool to build a custom k6 binary that includes the extension. You can install the extension using the following command:
 
 ```bash
-xk6 install github.com/grafana/xk6-dns@latest
+xk6 build --with github.com/grafana/xk6-dns
 ```
 
 ### Example k6 script
@@ -37,8 +37,8 @@ export const options = {
 
 export default async function() {
     // Request the IP address of k6.io from the selected namerserver A records.
-    const resolvedIP = await dns.resolve('k6.io', 'A', '192.168.2.100:53');
-    console.log(`k6.io IPs as resolved against the 192.168.2.100 nameserver: ${resolvedIP}`);
+    const resolvedIP = await dns.resolve('k6.io', 'A', '9.9.9.9:53');
+    console.log(`k6.io IPs as resolved against the 9.9.9.9 nameserver: ${resolvedIP}`);
     
     // Lookup the IP address of k6.io using the system's default DNS server.
     const lookupIP = await dns.lookup('k6.io');
