@@ -2,9 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "timezone": "UTC",
   "schedule": ["at 8am on monday"],
-  "rebaseWhen": "conflicted",
-  "assignees": [],
-  "reviewers": [],
   "labels": ["dependencies"],
   "packageRules": [
     {
