@@ -24,7 +24,6 @@
       ],
       "groupName": "k6 ecosystem",
       "enabled": true,
-      "labels": ["dependencies", "k6-ecosystem"]
     },
     {
       "description": "DNS library - critical for functionality",
@@ -47,15 +46,12 @@
       "automerge": true,
       "automergeType": "pr",
       "matchUpdateTypes": ["patch", "minor"],
-      "labels": ["dependencies", "testing"]
     },
     {
       "description": "Go version updates",
       "managers": ["gomod"],
       "matchDepTypes": ["golang"],
       "enabled": true,
-      "matchUpdateTypes": ["minor", "patch"],
-      "labels": ["dependencies", "golang"]
     }
   ]
 }
