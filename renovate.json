@@ -37,7 +37,6 @@
         "github.com/miekg/dns"
       ],
       "enabled": true,
-      "labels": ["dependencies", "dns-library"]
     },
     {
       "description": "Testing dependencies",
@@ -67,7 +66,6 @@
       "automerge": true,
       "automergeType": "pr",
       "matchUpdateTypes": ["patch"],
-      "labels": ["dependencies", "minor"]
     },
     {
       "description": "Go version updates",
