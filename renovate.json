@@ -36,7 +36,6 @@
       "matchPackageNames": [
         "github.com/miekg/dns"
       ],
-      "groupName": "DNS library",
       "enabled": true,
       "labels": ["dependencies", "dns-library"]
     },
