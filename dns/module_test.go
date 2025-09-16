@@ -12,6 +12,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/lib/types"
 
 	"github.com/testcontainers/testcontainers-go"
 	"go.k6.io/k6/metrics"
@@ -324,6 +325,47 @@ func TestClient_Resolve(t *testing.T) {
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
 		assert.Error(t, err)
 	})
+
+	t.Run("Resolving against a blocked hostname should fail", func(t *testing.T) {
+		t.Parallel()
+
+		// No need to start an Unbound container; we target localhost:53 and rely on the
+		// k6 dialer blacklist to block the connection.
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		dialer := newTestBlockedHostnameDialer("blocked.com")
+
+		runtime.MoveToVUContext(&lib.State{
+			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+			Dialer:         dialer,
+			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+			Samples:        make(chan metrics.SampleContainer, 8),
+		})
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"blocked.com",
+					"` + RecordTypeA.String() + `",
+					"127.0.0.1:53"
+				);
+			} catch (err) {
+				if (err.name !== "BlockedHostname") {
+					throw "Resolving blocked.com against unbound server test container returned unexpected error, expected BlockedHostname, got: " + err.name
+				}
+				
+				// We expected this error, so we can return
+				return
+			}
+
+			throw "Resolving blocked.com against unbound server test container should have thrown an error, but it didn't"
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
 }
 
 func TestClient_Lookup(t *testing.T) {
@@ -488,6 +530,18 @@ func newTestBlacklistIPsDialer(ip string, m net.IPMask) *netext.Dialer {
 	// We explicitly disable the resolver to ensure we do not bypass our own.
 	dialer := newTestDialer()
 	dialer.Blacklist = blacklist
+	return dialer
+}
+
+func newTestBlockedHostnameDialer(hostname string) *netext.Dialer {
+	// prepare a k6 dialer with blocked hostnames.
+	// We explicitly disable the resolver to ensure we do not bypass our own.
+	dialer := newTestDialer()
+
+	// Set blocked hostnames for tests expecting hostname-based blocking
+	trie, _ := types.NewHostnameTrie([]string{hostname})
+	dialer.BlockedHostnames = trie
+
 	return dialer
 }
 
