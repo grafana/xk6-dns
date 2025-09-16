@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/miekg/dns"
 	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/lib"
+	"go.k6.io/k6/lib/netext"
 )
 
 // Resolver is the interface that wraps the Resolve method.
