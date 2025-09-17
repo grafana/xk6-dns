@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/docker/go-connections/nat"
-
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.k6.io/k6/lib/netext"
 
 	"github.com/testcontainers/testcontainers-go"
 	"go.k6.io/k6/metrics"
@@ -292,6 +293,37 @@ func TestClient_Resolve(t *testing.T) {
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
 		assert.NoError(t, err)
 	})
+
+	t.Run("Resolving against a blacklisted IP should fail", func(t *testing.T) {
+		t.Parallel()
+
+		// No need to start an Unbound container; we target localhost:53 and rely on the
+		// k6 dialer blacklist to block the connection.
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		// Configure a dialer blacklisting 127.0.0.1
+		dialer := newTestBlacklistIPsDialer("127.0.0.1", net.CIDRMask(32, 32))
+
+		runtime.MoveToVUContext(&lib.State{
+			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+			Dialer:         dialer,
+			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+			Samples:        make(chan metrics.SampleContainer, 8),
+		})
+
+		testScript := `
+			await dns.resolve(
+				"google.com",
+				"` + RecordTypeA.String() + `",
+				"127.0.0.1:53"
+			);
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.Error(t, err)
+	})
 }
 
 func TestClient_Lookup(t *testing.T) {
@@ -441,4 +473,27 @@ type unboundRecord struct {
 // String returns the unbound configuration entry for the unboundRecord.
 func (c unboundRecord) String() string {
 	return fmt.Sprintf(`local-data: "%s. 0 IN %s %s"`, c.Domain, c.RecordType, c.IP)
+}
+
+func newTestBlacklistIPsDialer(ip string, m net.IPMask) *netext.Dialer {
+	// Prepare an IP blacklist
+	blacklist := []*lib.IPNet{{
+		IPNet: net.IPNet{
+			IP:   net.ParseIP(ip),
+			Mask: m,
+		},
+	}}
+
+	// prepare a k6 dialer with our blacklist.
+	// We explicitly disable the resolver to ensure we do not bypass our own.
+	dialer := newTestDialer()
+	dialer.Blacklist = blacklist
+	return dialer
+}
+
+func newTestDialer() *netext.Dialer {
+	return netext.NewDialer(net.Dialer{
+		Timeout:   2 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}, nil)
 }
