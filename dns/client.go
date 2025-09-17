@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/lib"
 	"go.k6.io/k6/lib/netext"
@@ -147,15 +148,43 @@ func (r *Client) Resolve(
 	return ips, nil
 }
 
-// Lookup resolves a domain name to a slice of IP addresses using the system's
-// default resolver.
+// Lookup resolves a domain name to a slice of IP addresses.
+//
+// It prefers the k6 VU dialer's resolver if available, so that k6 networking
+// options (e.g. blockHostnames) are honored. It falls back to the system's
+// default resolver otherwise.
 func (r *Client) Lookup(ctx context.Context, hostname string) ([]string, error) {
-	// Note: We don't need to use k6's dialer for Lookup since it uses net.DefaultResolver
-	// which operates at the system level, not requiring custom dial behavior.
-	// k6's network restrictions would be applied at a different layer for system lookups.
-	ips, err := net.DefaultResolver.LookupHost(ctx, hostname)
+	vustate := r.vu.State()
+	if vustate == nil {
+		return nil, common.NewInitContextError("using lookup in the init context is not supported")
+	}
+
+	// If k6's dialer is available, honor its blocked hostnames configuration.
+	if d, ok := vustate.Dialer.(*netext.Dialer); ok && d != nil && d.BlockedHostnames != nil {
+		normalized := strings.TrimSuffix(strings.ToLower(hostname), ".")
+		if _, blocked := d.BlockedHostnames.Contains(normalized); blocked {
+			return nil, &Error{
+				Name:    "BlockedHostname",
+				Message: fmt.Sprintf("blocked hostname: %s", normalized),
+				Kind:    Refused,
+			}
+		}
+	}
+
+	if vustate.Dialer == nil {
+		return nil, fmt.Errorf("unable to perform DNS lookup; reason: k6 internal network dialer is not available")
+	}
+	resolver := &net.Resolver{
+		Dial: vustate.Dialer.DialContext,
+	}
+
+	ips, err := resolver.LookupHost(ctx, hostname)
 	if err != nil {
-		return nil, fmt.Errorf("lookup of %s failed: %w", hostname, err)
+		return nil, &Error{
+			Name:    "LookupFailed",
+			Message: fmt.Sprintf("lookup of %s failed: %s", hostname, err.Error()),
+			Kind:    Refused,
+		}
 	}
 
 	return ips, nil
