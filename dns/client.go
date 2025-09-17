@@ -64,35 +64,6 @@ func NewDNSClient(vu modules.VU) (*Client, error) {
 	return client, nil
 }
 
-// ensureK6Client lazily initializes the k6 DNS client with k6's dialer.
-// This must be called in VU context where the dialer is available.
-func (r *Client) ensureK6Client() error {
-	var initErr error
-
-	r.once.Do(func() {
-		vuState := r.vu.State()
-		if vuState == nil || vuState.Dialer == nil {
-			// Fall back to standard DNS client if k6's dialer is not available
-			// This can happen in test environments or init context
-			r.k6Client = &k6DNSClient{
-				Client:   dns.Client{},
-				k6Dialer: nil, // Will use standard dialer behavior
-			}
-			return
-		}
-
-		// Create the k6 DNS client with k6's dialer
-		r.k6Client = &k6DNSClient{
-			Client: dns.Client{
-				Timeout: 5 * time.Second,
-			},
-			k6Dialer: vuState.Dialer,
-		}
-	})
-
-	return initErr
-}
-
 // Resolve resolves a domain name to a slice of IP addresses using the given nameserver.
 // It returns a slice of IP addresses as strings.
 func (r *Client) Resolve(
@@ -101,8 +72,30 @@ func (r *Client) Resolve(
 	nameserver Nameserver,
 ) ([]string, error) {
 	// Ensure k6 client is initialized (lazy initialization)
-	if err := r.ensureK6Client(); err != nil {
-		return nil, fmt.Errorf("failed to initialize k6 DNS client: %w", err)
+	r.ensureK6Client()
+
+	vustate := r.vu.State()
+	if vustate == nil {
+		return nil, fmt.Errorf("failed to get vu state")
+	}
+
+	// If k6's dialer is available, honor its blocked hostnames configuration.
+	//
+	// As the dns resolution process involves querying a specific nameserver, via its IP address,
+	// to query about a specific hostname, we need to check if the hostname is blocked by the k6 dialer.
+	//
+	// As such, we explicitly perform a check against the DNS query, and can't rely on the underlying dialer's
+	// existing logic that performs the check on the actual IP address targeted by the connection (which in our
+	// case is the nameserver's IP address, not the hostname).
+	if d, ok := vustate.Dialer.(*netext.Dialer); ok && d != nil && d.BlockedHostnames != nil {
+		normalizedQuery := strings.TrimSuffix(strings.ToLower(query), ".")
+		if _, blocked := d.BlockedHostnames.Contains(normalizedQuery); blocked {
+			return nil, &Error{
+				Name:    "BlockedHostname",
+				Message: fmt.Sprintf("blocked hostname: %s", normalizedQuery),
+				Kind:    Refused,
+			}
+		}
 	}
 
 	concreteType, err := RecordTypeString(recordType)
@@ -174,7 +167,11 @@ type k6DNSClient struct {
 }
 
 // ExchangeContext overrides the default ExchangeContext to use k6's dialer
-func (c *k6DNSClient) ExchangeContext(ctx context.Context, m *dns.Msg, address string) (*dns.Msg, time.Duration, error) {
+func (c *k6DNSClient) ExchangeContext(
+	ctx context.Context,
+	m *dns.Msg,
+	address string,
+) (*dns.Msg, time.Duration, error) {
 	// If k6 dialer is not available, fall back to standard DNS client behavior
 	if c.k6Dialer == nil {
 		return c.Client.ExchangeContext(ctx, m, address)
@@ -232,4 +229,29 @@ func (c *k6DNSClient) ExchangeContext(ctx context.Context, m *dns.Msg, address s
 
 	totalTime := time.Since(start)
 	return response, totalTime, nil
+}
+
+// ensureK6Client lazily initializes the k6 DNS client with k6's dialer.
+// This must be called in VU context where the dialer is available.
+func (r *Client) ensureK6Client() {
+	r.once.Do(func() {
+		vuState := r.vu.State()
+		if vuState == nil || vuState.Dialer == nil {
+			// Fall back to standard DNS client if k6's dialer is not available
+			// This can happen in test environments or init context
+			r.k6Client = &k6DNSClient{
+				Client:   dns.Client{},
+				k6Dialer: nil, // Will use standard dialer behavior
+			}
+			return
+		}
+
+		// Create the k6 DNS client with k6's dialer
+		r.k6Client = &k6DNSClient{
+			Client: dns.Client{
+				Timeout: 5 * time.Second,
+			},
+			k6Dialer: vuState.Dialer,
+		}
+	})
 }
