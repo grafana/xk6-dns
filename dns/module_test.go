@@ -386,12 +386,8 @@ func TestClient_Lookup(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("Lookup returns the system's default resolver results", func(t *testing.T) {
+	t.Run("Lookup with a nil dialer should fail", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := t.Context()
-		wantIPs, err := net.DefaultResolver.LookupHost(ctx, "k6.io")
-		require.NoError(t, err)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -403,13 +399,42 @@ func TestClient_Lookup(t *testing.T) {
 			Samples:        make(chan metrics.SampleContainer, 1024),
 		})
 
-		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(fmt.Sprintf(`
-			const lookupResults = await dns.lookup("k6.io");
+		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
+			await dns.lookup("k6.io");
+		`))
 
-			if (lookupResults.length !== %d) {
-				throw "Looking up k6.io using the system's default resolver returned unexpected number of results, expected %d, got " + lookupResults
+		assert.Error(t, gotErr)
+	})
+
+	t.Run("Lookup against a blocked hostname should fail", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		dialer := newTestBlockedHostnameDialer("blocked.com")
+
+		runtime.MoveToVUContext(&lib.State{
+			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+			Dialer:         dialer,
+			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+			Samples:        make(chan metrics.SampleContainer, 8),
+		})
+
+		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
+			try {
+				await dns.lookup("blocked.com");
+			} catch (err) {
+				if (err.name !== "BlockedHostname") {
+					throw "Looking up blocked.com against unbound server test container returned unexpected error, expected BlockedHostname, got: " + err.name
+				}
+				
+				// We expected this error, so we can return
+				return
 			}
-		`, len(wantIPs), len(wantIPs))))
+
+			throw "Looking up blocked.com against unbound server test container should have thrown an error, but it didn't"
+		`))
 
 		assert.NoError(t, gotErr)
 	})
