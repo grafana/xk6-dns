@@ -11,25 +11,19 @@
     },
     {
       "description": "GitHub Actions",
-      "managers": [
-        "github-actions"
-      ]
+      "managers": ["github-actions"]
     },
     {
       "description": "k6 core and ecosystem packages",
       "managers": ["gomod"],
-      "matchPackageNames": [
-        "go.k6.io/k6",
-      ],
+      "matchPackageNames": ["go.k6.io/k6"],
       "groupName": "k6 ecosystem",
-      "enabled": true,
+      "enabled": true
     },
     {
       "description": "DNS library - critical for functionality",
       "managers": ["gomod"],
-      "matchPackageNames": [
-        "github.com/miekg/dns"
-      ],
+      "matchPackageNames": ["github.com/miekg/dns"],
       "enabled": true
     },
     {
@@ -44,13 +38,13 @@
       "enabled": true,
       "automerge": true,
       "automergeType": "pr",
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": ["patch", "minor"]
     },
     {
       "description": "Go version updates",
       "managers": ["gomod"],
       "matchDepTypes": ["golang"],
-      "enabled": true,
+      "enabled": true
     }
   ]
 }
