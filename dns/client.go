@@ -231,7 +231,7 @@ func (c *k6DNSClient) ExchangeContext(
 	if deadline, ok := ctx.Deadline(); ok {
 		deadlineErr = conn.SetDeadline(deadline)
 	} else {
-		deadlineErr = conn.SetDeadline(time.Now().Add(c.Client.Timeout))
+		deadlineErr = conn.SetDeadline(time.Now().Add(c.Timeout))
 	}
 	if deadlineErr != nil {
 		return nil, 0, fmt.Errorf("unable to set dns connection deadline; reason: %w", err)
@@ -270,8 +270,8 @@ func (c *k6DNSClient) ExchangeContext(
 // This must be called in VU context where the dialer is available.
 func (r *Client) ensureK6Client() (err error) {
 	r.once.Do(func() {
-		err := ensureVUContext(r.vu, "dns client")
-		if err != nil {
+		contextErr := ensureVUContext(r.vu, "dns client")
+		if contextErr != nil {
 			err = common.NewInitContextError("using dns module in the init context is not supported")
 			return
 		}
