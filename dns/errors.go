@@ -6,9 +6,6 @@ import "errors"
 // the module.
 var ErrUnsupportedRecordType = errors.New("unsupported record type")
 
-// ErrLookupFailed is an error that is returned when a lookup fails.
-var ErrLookupFailed = errors.New("lookup failed")
-
 // Error represents a DNS error.
 type Error struct {
 	// Name holds the descriptive name of the error.

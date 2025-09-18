@@ -83,11 +83,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 1024),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(`
 			const resolveResults = await dns.resolve("k6.io", "A", "1.1.1.1:53");
@@ -115,11 +111,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			const resolveResults = await dns.resolve(
@@ -169,11 +161,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			try {
@@ -213,11 +201,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			const resolveResults = await dns.resolve(
@@ -266,11 +250,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			try {
@@ -305,14 +285,9 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Configure a dialer blacklisting 127.0.0.1
-		dialer := newTestBlacklistIPsDialer("127.0.0.1", net.CIDRMask(32, 32))
-
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Dialer:         dialer,
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		state := newTestVUState()
+		state.Dialer = newTestBlacklistIPsDialer("127.0.0.1", net.CIDRMask(32, 32))
+		runtime.MoveToVUContext(state)
 
 		testScript := `
 			await dns.resolve(
@@ -335,14 +310,9 @@ func TestClient_Resolve(t *testing.T) {
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
 
-		dialer := newTestBlockedHostnameDialer("blocked.com")
-
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Dialer:         dialer,
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		state := newTestVUState()
+		state.Dialer = newTestBlockedHostnameDialer("blocked.com")
+		runtime.MoveToVUContext(state)
 
 		testScript := `
 			try {
@@ -393,11 +363,9 @@ func TestClient_Lookup(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 1024),
-		})
+		state := newTestVUState()
+		state.Dialer = nil
+		runtime.MoveToVUContext(state)
 
 		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
 			await dns.lookup("k6.io");
@@ -412,14 +380,9 @@ func TestClient_Lookup(t *testing.T) {
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
 
-		dialer := newTestBlockedHostnameDialer("blocked.com")
-
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Dialer:         dialer,
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		state := newTestVUState()
+		state.Dialer = newTestBlockedHostnameDialer("blocked.com")
+		runtime.MoveToVUContext(state)
 
 		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
 			try {
@@ -542,6 +505,22 @@ func (c unboundRecord) String() string {
 	return fmt.Sprintf(`local-data: "%s. 0 IN %s %s"`, c.Domain, c.RecordType, c.IP)
 }
 
+func newTestVUState() *lib.State {
+	return &lib.State{
+		BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+		Dialer:         newTestDialer(),
+		Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+		Samples:        make(chan metrics.SampleContainer, 8),
+	}
+}
+
+func newTestDialer() *netext.Dialer {
+	return netext.NewDialer(net.Dialer{
+		Timeout:   2 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}, nil)
+}
+
 func newTestBlacklistIPsDialer(ip string, m net.IPMask) *netext.Dialer {
 	// Prepare an IP blacklist
 	blacklist := []*lib.IPNet{{
@@ -568,11 +547,4 @@ func newTestBlockedHostnameDialer(hostname string) *netext.Dialer {
 	dialer.BlockedHostnames = trie
 
 	return dialer
-}
-
-func newTestDialer() *netext.Dialer {
-	return netext.NewDialer(net.Dialer{
-		Timeout:   2 * time.Second,
-		KeepAlive: 10 * time.Second,
-	}, nil)
 }

@@ -30,6 +30,6 @@ type RecordType uint16
 // Note that the RecordType enum values are explicitly typed to allow enumer
 // to detect them.
 const (
-	RecordTypeA    RecordType = RecordType(dns.TypeA)
-	RecordTypeAAAA RecordType = RecordType(dns.TypeAAAA)
+	RecordTypeA    = RecordType(dns.TypeA)
+	RecordTypeAAAA = RecordType(dns.TypeAAAA)
 )
