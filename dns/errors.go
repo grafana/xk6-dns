@@ -2,9 +2,9 @@ package dns
 
 import "errors"
 
-// ErrUnsupportedRecordType is an error that is returned when a record type is not supported by
+// errUnsupportedRecordType is an error that is returned when a record type is not supported by
 // the module.
-var ErrUnsupportedRecordType = errors.New("unsupported record type")
+var errUnsupportedRecordType = errors.New("unsupported record type")
 
 // Error represents a DNS error.
 type Error struct {
