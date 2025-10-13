@@ -85,6 +85,15 @@ func (r *Client) Resolve(
 		return nil, fmt.Errorf("failed to ensure dns client is initialized: %w", err)
 	}
 
+	if r.vu.State().Dialer == nil {
+		return nil, fmt.Errorf("k6 internal network dialer is unavailable (internal error)")
+	}
+
+	k6Dialer, ok := r.vu.State().Dialer.(*netext.Dialer)
+	if !ok {
+		return nil, fmt.Errorf("k6 internal network dialer has an unexpected type (internal error)")
+	}
+
 	// If k6's dialer is available, honor its blocked hostnames configuration.
 	//
 	// As the dns resolution process involves querying a specific nameserver, via its IP address,
@@ -93,12 +102,12 @@ func (r *Client) Resolve(
 	// As such, we explicitly perform a check against the DNS query, and can't rely on the underlying dialer's
 	// existing logic that performs the check on the actual IP address targeted by the connection (which in our
 	// case is the nameserver's IP address, not the hostname).
-	if d, ok := r.vu.State().Dialer.(*netext.Dialer); ok && d != nil && d.BlockedHostnames != nil {
+	if k6Dialer.BlockedHostnames != nil {
 		normalizedQuery := strings.TrimSuffix(strings.ToLower(query), ".")
-		if _, blocked := d.BlockedHostnames.Contains(normalizedQuery); blocked {
+		if _, blocked := k6Dialer.BlockedHostnames.Contains(normalizedQuery); blocked {
 			return nil, &Error{
 				Name:    "BlockedHostname",
-				Message: fmt.Sprintf("blocked hostname: %s", normalizedQuery),
+				Message: fmt.Sprintf("DNS query blocked by k6 option blockHostnames: %s", normalizedQuery),
 				Kind:    Refused,
 			}
 		}
