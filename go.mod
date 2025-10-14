@@ -1,6 +1,6 @@
 module github.com/grafana/xk6-dns
 
-go 1.25.0
+go 1.24.0
 
 require (
 	github.com/docker/go-connections v0.6.0
