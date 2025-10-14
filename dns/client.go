@@ -16,25 +16,6 @@ import (
 	"go.k6.io/k6/lib/netext"
 )
 
-// Resolver is the interface that wraps the Resolve method.
-//
-// Resolve resolves a domain name to an IP address. It returns a slice of IP
-// addresses as strings.
-type Resolver interface {
-	Resolve(ctx context.Context, query, recordType string, nameserver Nameserver) ([]string, error)
-}
-
-// Lookuper is the interface that wraps the Lookup method.
-//
-// As opposed to a Resolver which uses a specific nameserver to resolve the
-// query, a Lookuper uses the system's default resolver.
-//
-// Lookup resolves a domain name to an IP address. It returns a slice of IP
-// addresses as strings.
-type Lookuper interface {
-	Lookup(ctx context.Context, hostname string) ([]string, error)
-}
-
 // Client is a DNS resolver that uses the `miekg/dns` package under the hood.
 //
 // It implements the Resolver interface.
@@ -50,12 +31,6 @@ type Client struct {
 
 	vu modules.VU
 }
-
-// Ensure our Client implements the Resolver interface
-var _ Resolver = &Client{}
-
-// Ensure our Client implements the Lookuper interface
-var _ Lookuper = &Client{}
 
 // NewDNSClient creates a new Client.
 func NewDNSClient(vu modules.VU) (*Client, error) {
