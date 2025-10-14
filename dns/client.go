@@ -219,7 +219,7 @@ func (c *k6DNSClient) ExchangeContext(
 	m *dns.Msg,
 	address string,
 ) (*dns.Msg, time.Duration, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultDNSTimeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, defaultDNSTimeout, fmt.Errorf("DNS operation timed out"))
 	defer cancel()
 
 	// If k6 dialer is not available, fall back to standard DNS client behavior
@@ -249,7 +249,7 @@ func (c *k6DNSClient) ExchangeContext(
 		deadlineErr = conn.SetDeadline(time.Now().Add(c.Timeout))
 	}
 	if deadlineErr != nil {
-		return nil, 0, fmt.Errorf("unable to set dns connection deadline; reason: %w", err)
+		return nil, 0, fmt.Errorf("unable to set dns connection deadline; reason: %w", deadlineErr)
 	}
 
 	// Pack the DNS message and write it
