@@ -210,12 +210,18 @@ type k6DNSClient struct {
 	k6Dialer lib.DialContexter
 }
 
+// defaultDNSTimeout is the default timeout for DNS operations.
+const defaultDNSTimeout = 5 * time.Second
+
 // ExchangeContext overrides the default ExchangeContext to use k6's dialer
 func (c *k6DNSClient) ExchangeContext(
 	ctx context.Context,
 	m *dns.Msg,
 	address string,
 ) (*dns.Msg, time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultDNSTimeout)
+	defer cancel()
+
 	// If k6 dialer is not available, fall back to standard DNS client behavior
 	if c.k6Dialer == nil {
 		return c.Client.ExchangeContext(ctx, m, address)
@@ -291,9 +297,7 @@ func (r *Client) ensureK6Client() (err error) {
 
 		// Create the k6 DNS client with k6's dialer
 		r.k6Client = &k6DNSClient{
-			Client: dns.Client{
-				Timeout: 5 * time.Second,
-			},
+			Client:   dns.Client{},
 			k6Dialer: r.vu.State().Dialer,
 		}
 	})
