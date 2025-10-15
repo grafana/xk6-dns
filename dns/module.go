@@ -45,9 +45,14 @@ func (rm *RootModule) NewModuleInstance(vu modules.VU) modules.Instance {
 		common.Throw(vu.Runtime(), fmt.Errorf("failed to register dns module instance's metrics; reason: %w", err))
 	}
 
+	dnsClient, err := NewDNSClient(vu)
+	if err != nil {
+		common.Throw(vu.Runtime(), fmt.Errorf("failed to create DNS client; reason: %w", err))
+	}
+
 	return &ModuleInstance{
 		vu:        vu,
-		dnsClient: NewDNSClient(),
+		dnsClient: dnsClient,
 		metrics:   instanceMetrics,
 	}
 }

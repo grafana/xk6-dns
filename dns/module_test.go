@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/docker/go-connections/nat"
-
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/lib/types"
 
 	"github.com/testcontainers/testcontainers-go"
 	"go.k6.io/k6/metrics"
@@ -81,11 +83,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 1024),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(`
 			const resolveResults = await dns.resolve("k6.io", "A", "1.1.1.1:53");
@@ -113,11 +111,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			const resolveResults = await dns.resolve(
@@ -167,11 +161,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			try {
@@ -211,11 +201,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			const resolveResults = await dns.resolve(
@@ -264,11 +250,7 @@ func TestClient_Resolve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state to execute in the VU context
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 8),
-		})
+		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
 			try {
@@ -287,6 +269,68 @@ func TestClient_Resolve(t *testing.T) {
 			}
 		
 			throw "Resolving missing.domain against unbound server test container should have thrown an error, but it didn't"
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving against a blacklisted IP should fail", func(t *testing.T) {
+		t.Parallel()
+
+		// No need to start an Unbound container; we target localhost:53 and rely on the
+		// k6 dialer blacklist to block the connection.
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		// Configure a dialer blacklisting 127.0.0.1
+		state := newTestVUState()
+		state.Dialer = newTestBlacklistIPsDialer("127.0.0.1", net.CIDRMask(32, 32))
+		runtime.MoveToVUContext(state)
+
+		testScript := `
+			await dns.resolve(
+				"google.com",
+				"` + RecordTypeA.String() + `",
+				"127.0.0.1:53"
+			);
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.Error(t, err)
+	})
+
+	t.Run("Resolving against a blocked hostname should fail", func(t *testing.T) {
+		t.Parallel()
+
+		// No need to start an Unbound container; we target localhost:53 and rely on the
+		// k6 dialer blacklist to block the connection.
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		state := newTestVUState()
+		state.Dialer = newTestBlockedHostnameDialer("blocked.com")
+		runtime.MoveToVUContext(state)
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"blocked.com",
+					"` + RecordTypeA.String() + `",
+					"127.0.0.1:53"
+				);
+			} catch (err) {
+				if (err.name !== "BlockedHostname") {
+					throw "Resolving blocked.com against unbound server test container returned unexpected error, expected BlockedHostname, got: " + err.name
+				}
+				
+				// We expected this error, so we can return
+				return
+			}
+
+			throw "Resolving blocked.com against unbound server test container should have thrown an error, but it didn't"
 		`
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
@@ -312,30 +356,48 @@ func TestClient_Lookup(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("Lookup returns the system's default resolver results", func(t *testing.T) {
+	t.Run("Lookup with a nil dialer should fail", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := t.Context()
-		wantIPs, err := net.DefaultResolver.LookupHost(ctx, "k6.io")
-		require.NoError(t, err)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
 
 		// Setting up the runtime with the necessary state
-		runtime.MoveToVUContext(&lib.State{
-			BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
-			Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
-			Samples:        make(chan metrics.SampleContainer, 1024),
-		})
+		state := newTestVUState()
+		state.Dialer = nil
+		runtime.MoveToVUContext(state)
 
-		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(fmt.Sprintf(`
-			const lookupResults = await dns.lookup("k6.io");
+		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
+			await dns.lookup("k6.io");
+		`))
 
-			if (lookupResults.length !== %d) {
-				throw "Looking up k6.io using the system's default resolver returned unexpected number of results, expected %d, got " + lookupResults
+		assert.Error(t, gotErr)
+	})
+
+	t.Run("Lookup against a blocked hostname should fail", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		state := newTestVUState()
+		state.Dialer = newTestBlockedHostnameDialer("blocked.com")
+		runtime.MoveToVUContext(state)
+
+		_, gotErr := runtime.RunOnEventLoop(wrapInAsyncLambda(`
+			try {
+				await dns.lookup("blocked.com");
+			} catch (err) {
+				if (err.name !== "BlockedHostname") {
+					throw "Looking up blocked.com against unbound server test container returned unexpected error, expected BlockedHostname, got: " + err.name
+				}
+				
+				// We expected this error, so we can return
+				return
 			}
-		`, len(wantIPs), len(wantIPs))))
+
+			throw "Looking up blocked.com against unbound server test container should have thrown an error, but it didn't"
+		`))
 
 		assert.NoError(t, gotErr)
 	})
@@ -441,4 +503,48 @@ type unboundRecord struct {
 // String returns the unbound configuration entry for the unboundRecord.
 func (c unboundRecord) String() string {
 	return fmt.Sprintf(`local-data: "%s. 0 IN %s %s"`, c.Domain, c.RecordType, c.IP)
+}
+
+func newTestVUState() *lib.State {
+	return &lib.State{
+		BuiltinMetrics: metrics.RegisterBuiltinMetrics(metrics.NewRegistry()),
+		Dialer:         newTestDialer(),
+		Tags:           lib.NewVUStateTags(metrics.NewRegistry().RootTagSet().With("tag-vu", "mytag")),
+		Samples:        make(chan metrics.SampleContainer, 8),
+	}
+}
+
+func newTestDialer() *netext.Dialer {
+	return netext.NewDialer(net.Dialer{
+		Timeout:   2 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}, nil)
+}
+
+func newTestBlacklistIPsDialer(ip string, m net.IPMask) *netext.Dialer {
+	// Prepare an IP blacklist
+	blacklist := []*lib.IPNet{{
+		IPNet: net.IPNet{
+			IP:   net.ParseIP(ip),
+			Mask: m,
+		},
+	}}
+
+	// prepare a k6 dialer with our blacklist.
+	// We explicitly disable the resolver to ensure we do not bypass our own.
+	dialer := newTestDialer()
+	dialer.Blacklist = blacklist
+	return dialer
+}
+
+func newTestBlockedHostnameDialer(hostname string) *netext.Dialer {
+	// prepare a k6 dialer with blocked hostnames.
+	// We explicitly disable the resolver to ensure we do not bypass our own.
+	dialer := newTestDialer()
+
+	// Set blocked hostnames for tests expecting hostname-based blocking
+	trie, _ := types.NewHostnameTrie([]string{hostname})
+	dialer.BlockedHostnames = trie
+
+	return dialer
 }
