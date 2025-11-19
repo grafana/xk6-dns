@@ -509,18 +509,21 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 					throw "Expected at least one IPv6 address for k6.io";
 				}
 			} catch (err) {
+				// Get error message - handle both Go errors (string) and JS Error objects
+				const errMsg = (err.message || err.toString());
+
 				// If the error is about parsing, that's a real failure
-				if (err.message && err.message.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + err.message;
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
 				}
 
-				// If IPv6 is not available in the test environment, skip
-				if (err.message && (
-					err.message.includes("network is unreachable") ||
-					err.message.includes("no route to host") ||
-					err.message.includes("connect: cannot assign requested address")
-				)) {
-					console.log("Skipping test - IPv6 not available in environment");
+				// If IPv6 is not available in the test environment, skip gracefully
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
 					return;
 				}
 
@@ -553,16 +556,18 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 					throw "Expected at least one IPv6 address for k6.io";
 				}
 			} catch (err) {
-				if (err.message && err.message.includes("invalid nameserver")) {
-					throw "IPv6 nameserver with brackets parsing failed: " + err.message;
+				const errMsg = (err.message || err.toString());
+
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver with brackets parsing failed: " + errMsg;
 				}
 
-				if (err.message && (
-					err.message.includes("network is unreachable") ||
-					err.message.includes("no route to host") ||
-					err.message.includes("connect: cannot assign requested address")
-				)) {
-					console.log("Skipping test - IPv6 not available in environment");
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
 					return;
 				}
 
@@ -595,16 +600,18 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 					throw "Expected at least one IPv4 address for k6.io";
 				}
 			} catch (err) {
-				if (err.message && err.message.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + err.message;
+				const errMsg = (err.message || err.toString());
+
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
 				}
 
-				if (err.message && (
-					err.message.includes("network is unreachable") ||
-					err.message.includes("no route to host") ||
-					err.message.includes("connect: cannot assign requested address")
-				)) {
-					console.log("Skipping test - IPv6 not available in environment");
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
 					return;
 				}
 
@@ -632,18 +639,20 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 					"[2606:4700:4700::1111]:53"
 				);
 			} catch (err) {
+				const errMsg = (err.message || err.toString());
+
 				// Check if it's a parsing error first (that would be a bug)
-				if (err.message && err.message.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + err.message;
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
 				}
 
 				// If IPv6 is not available, skip
-				if (err.message && (
-					err.message.includes("network is unreachable") ||
-					err.message.includes("no route to host") ||
-					err.message.includes("connect: cannot assign requested address")
-				)) {
-					console.log("Skipping test - IPv6 not available in environment");
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
 					return;
 				}
 
@@ -684,7 +693,7 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "dial")
+		assert.Contains(t, err.Error(), "blacklisted")
 	})
 
 	t.Run("Resolving blocked hostname against IPv6 nameserver should fail", func(t *testing.T) {
@@ -747,16 +756,18 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 						"` + tc.nameserver + `"
 					);
 				} catch (err) {
+					const errMsg = (err.message || err.toString());
+
 					// We expect a parsing error
-					if (err.message && (
-						err.message.includes("invalid nameserver") ||
-						err.message.includes("parsing nameserver")
-					)) {
+					if (
+						errMsg.includes("invalid nameserver") ||
+						errMsg.includes("parsing nameserver")
+					) {
 						// Expected error
 						return;
 					}
 
-					throw "Expected parsing error for malformed IPv6, got: " + err.message;
+					throw "Expected parsing error for malformed IPv6, got: " + errMsg;
 				}
 
 				throw "Expected parsing error but query succeeded";

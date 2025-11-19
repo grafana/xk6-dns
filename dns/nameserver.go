@@ -17,7 +17,12 @@ type Nameserver struct {
 }
 
 // Addr returns the address of the nameserver as a string.
+// IPv6 addresses are wrapped in brackets to form valid host:port notation.
 func (n Nameserver) Addr() string {
+	// Check if it's an IPv6 address (To4() returns nil for IPv6)
+	if n.IP.To4() == nil {
+		return "[" + n.IP.String() + "]:" + strconv.Itoa(int(n.Port))
+	}
 	return n.IP.String() + ":" + strconv.Itoa(int(n.Port))
 }
 
@@ -55,6 +60,14 @@ func parseHostAndPort(addr string) (string, uint16, error) {
 	}
 
 	if !strings.Contains(addr, ":") {
+		return addr, defaultDNSPort, nil
+	}
+
+	// Check if it's a bare IPv6 address (without brackets, without port)
+	// IPv6 addresses contain colons but aren't in bracket notation.
+	// This also handles IPv4-mapped IPv6 addresses like ::ffff:192.0.2.1
+	if ip := net.ParseIP(addr); ip != nil {
+		// It's a valid IP address without port - use default port
 		return addr, defaultDNSPort, nil
 	}
 
