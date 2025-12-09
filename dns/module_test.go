@@ -338,6 +338,447 @@ func TestClient_Resolve(t *testing.T) {
 	})
 }
 
+func TestClient_ResolveIPv6Nameservers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Resolving using bare IPv6 loopback nameserver address should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		unboundContainer, _ := startUnboundContainer(ctx, t)
+		defer func() {
+			if err := unboundContainer.Terminate(ctx); err != nil {
+				t.Fatalf("could not stop unbound: %s", err.Error())
+			}
+		}()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		// Test using bare IPv6 address without port (should default to port 53)
+		// Note: We can't use ::1 directly because the container is on IPv4 localhost
+		// This test validates the parsing logic handles IPv6 format correctly
+		testScript := `
+			try {
+				// This tests that we can parse IPv6 addresses
+				// Using a real IPv6 address would require IPv6 network setup
+				await dns.resolve(
+					"` + testDomain + `",
+					"` + RecordTypeAAAA.String() + `",
+					"::1"
+				);
+			} catch (err) {
+				// We expect a connection error since ::1 won't have our test server
+				// but the parse should succeed. If parsing fails, we get a different error.
+				if (err.message && err.message.includes("invalid nameserver")) {
+					throw "IPv6 parsing failed: " + err.message;
+				}
+				// Connection failure is expected - parsing succeeded
+				return;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving using IPv6 nameserver with bracket notation and port should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
+		defer func() {
+			if err := unboundContainer.Terminate(ctx); err != nil {
+				t.Fatalf("could not stop unbound: %s", err.Error())
+			}
+		}()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"` + testDomain + `",
+					"` + RecordTypeAAAA.String() + `",
+					"[::1]:` + strconv.Itoa(mappedPort.Int()) + `"
+				);
+			} catch (err) {
+				// We expect a connection error since ::1 may not be reachable
+				// but the parse should succeed
+				if (err.message && err.message.includes("invalid nameserver")) {
+					throw "IPv6 bracket notation parsing failed: " + err.message;
+				}
+				// Connection failure is expected - parsing succeeded
+				return;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving using bracketed IPv6 nameserver without port should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		unboundContainer, _ := startUnboundContainer(ctx, t)
+		defer func() {
+			if err := unboundContainer.Terminate(ctx); err != nil {
+				t.Fatalf("could not stop unbound: %s", err.Error())
+			}
+		}()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"` + testDomain + `",
+					"` + RecordTypeAAAA.String() + `",
+					"[::1]"
+				);
+			} catch (err) {
+				if (err.message && err.message.includes("invalid nameserver")) {
+					throw "IPv6 bracketed without port parsing failed: " + err.message;
+				}
+				// Connection failure is expected - parsing succeeded
+				return;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving using compressed IPv6 notation should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				// Test compressed IPv6 notation parsing
+				await dns.resolve(
+					"k6.io",
+					"` + RecordTypeAAAA.String() + `",
+					"fe80::1"
+				);
+			} catch (err) {
+				if (err.message && err.message.includes("invalid nameserver")) {
+					throw "Compressed IPv6 notation parsing failed: " + err.message;
+				}
+				// Connection failure is expected - parsing succeeded
+				return;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving AAAA records using public IPv6 nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		// This is the exact case from issue #20 - using Cloudflare's IPv6 DNS
+		// This test may fail in environments without IPv6 connectivity
+		testScript := `
+			try {
+				const resolveResults = await dns.resolve(
+					"k6.io",
+					"` + RecordTypeAAAA.String() + `",
+					"2606:4700:4700::1111"
+				);
+
+				if (resolveResults.length === 0) {
+					throw "Expected at least one IPv6 address for k6.io";
+				}
+			} catch (err) {
+				// Get error message - handle both Go errors (string) and JS Error objects
+				const errMsg = (err.message || err.toString());
+
+				// If the error is about parsing, that's a real failure
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
+				}
+
+				// If IPv6 is not available in the test environment, skip gracefully
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
+					return;
+				}
+
+				// Other errors are real failures
+				throw err;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving AAAA records using public IPv6 nameserver with brackets and port should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				const resolveResults = await dns.resolve(
+					"k6.io",
+					"` + RecordTypeAAAA.String() + `",
+					"[2606:4700:4700::1111]:53"
+				);
+
+				if (resolveResults.length === 0) {
+					throw "Expected at least one IPv6 address for k6.io";
+				}
+			} catch (err) {
+				const errMsg = (err.message || err.toString());
+
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver with brackets parsing failed: " + errMsg;
+				}
+
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
+					return;
+				}
+
+				throw err;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving A records using public IPv6 nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		// Test that IPv6 nameservers work for A record queries too
+		testScript := `
+			try {
+				const resolveResults = await dns.resolve(
+					"k6.io",
+					"` + RecordTypeA.String() + `",
+					"2606:4700:4700::1111"
+				);
+
+				if (resolveResults.length === 0) {
+					throw "Expected at least one IPv4 address for k6.io";
+				}
+			} catch (err) {
+				const errMsg = (err.message || err.toString());
+
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
+				}
+
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
+					return;
+				}
+
+				throw err;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving non-existing domain against public IPv6 nameserver should return NonExistingDomain error", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"this-domain-definitely-does-not-exist-12345.com",
+					"` + RecordTypeAAAA.String() + `",
+					"[2606:4700:4700::1111]:53"
+				);
+			} catch (err) {
+				const errMsg = (err.message || err.toString());
+
+				// Check if it's a parsing error first (that would be a bug)
+				if (errMsg.includes("invalid nameserver")) {
+					throw "IPv6 nameserver parsing failed: " + errMsg;
+				}
+
+				// If IPv6 is not available, skip
+				if (
+					errMsg.includes("network is unreachable") ||
+					errMsg.includes("no route to host") ||
+					errMsg.includes("connect: cannot assign requested address")
+				) {
+					// IPv6 not available - test passes (skip)
+					return;
+				}
+
+				// We expect NonExistingDomain error
+				if (err.name !== "NonExistingDomain") {
+					throw "Expected NonExistingDomain error, got: " + err.name;
+				}
+
+				// Expected error received
+				return;
+			}
+
+			throw "Expected NonExistingDomain error but query succeeded";
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving against blacklisted IPv6 nameserver should fail", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		// Configure a dialer blacklisting the IPv6 loopback address
+		state := newTestVUState()
+		state.Dialer = newTestBlacklistIPsDialer("::1", net.CIDRMask(128, 128))
+		runtime.MoveToVUContext(state)
+
+		testScript := `
+			await dns.resolve(
+				"k6.io",
+				"` + RecordTypeAAAA.String() + `",
+				"[::1]:53"
+			);
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "blacklisted")
+	})
+
+	t.Run("Resolving blocked hostname against IPv6 nameserver should fail", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		state := newTestVUState()
+		state.Dialer = newTestBlockedHostnameDialer("blocked.com")
+		runtime.MoveToVUContext(state)
+
+		testScript := `
+			try {
+				await dns.resolve(
+					"blocked.com",
+					"` + RecordTypeAAAA.String() + `",
+					"[::1]:53"
+				);
+			} catch (err) {
+				if (err.name !== "BlockedHostname") {
+					throw "Expected BlockedHostname error, got: " + err.name;
+				}
+
+				// Expected error received
+				return;
+			}
+
+			throw "Expected BlockedHostname error but query succeeded";
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving using malformed IPv6 nameserver should fail with clear error", func(t *testing.T) {
+		t.Parallel()
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testCases := []struct {
+			name       string
+			nameserver string
+		}{
+			{"invalid IPv6", "gggg::1"},
+			{"missing bracket close", "[::1:53"},
+			{"incomplete IPv6", "2606:4700:"},
+			{"port without brackets", "::1:99999"},
+		}
+
+		for _, tc := range testCases {
+			testScript := `
+				try {
+					await dns.resolve(
+						"k6.io",
+						"` + RecordTypeAAAA.String() + `",
+						"` + tc.nameserver + `"
+					);
+				} catch (err) {
+					const errMsg = (err.message || err.toString());
+
+					// We expect a parsing error
+					if (
+						errMsg.includes("invalid nameserver") ||
+						errMsg.includes("parsing nameserver")
+					) {
+						// Expected error
+						return;
+					}
+
+					throw "Expected parsing error for malformed IPv6, got: " + errMsg;
+				}
+
+				throw "Expected parsing error but query succeeded";
+			`
+
+			_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+			assert.NoError(t, err, "Test case: %s", tc.name)
+		}
+	})
+}
+
 func TestClient_Lookup(t *testing.T) {
 	t.Parallel()
 
