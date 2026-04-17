@@ -105,6 +105,7 @@ func (r *Client) Resolve(
 	// corresponding uint16 value.
 	message := dns.Msg{}
 	message.SetQuestion(query+".", uint16(concreteType))
+	message.SetEdns0(4096, false)
 
 	// Query the nameserver using k6's dialer
 	response, _, err := r.k6Client.ExchangeContext(ctx, &message, nameserver.Addr())
@@ -116,13 +117,15 @@ func (r *Client) Resolve(
 		return nil, newDNSError(response.Rcode, "DNS query failed")
 	}
 
-	var ips []string
+	var results []string
 	for _, a := range response.Answer {
 		switch t := a.(type) {
 		case *dns.A:
-			ips = append(ips, t.A.String())
+			results = append(results, t.A.String())
 		case *dns.AAAA:
-			ips = append(ips, t.AAAA.String())
+			results = append(results, t.AAAA.String())
+		case *dns.TXT:
+			results = append(results, t.Txt...)
 		default:
 			return nil, fmt.Errorf(
 				"resolve operation failed with %w: unhandled DNS answer type %T",
@@ -132,7 +135,7 @@ func (r *Client) Resolve(
 		}
 	}
 
-	return ips, nil
+	return results, nil
 }
 
 // Lookup resolves a domain name to a slice of IP addresses.

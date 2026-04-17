@@ -26,19 +26,38 @@ func (n Nameserver) Addr() string {
 	return n.IP.String() + ":" + strconv.Itoa(int(n.Port))
 }
 
-// ParseNameserverAddr parses a nameserver address string into an IP and a port.
+// parseNameserverAddr parses a nameserver address string into an IP and a port.
 //
-// It expects the `addr` to be in the format `ip` or `ip[:port]`. Where `ip` can be an IPv4 or an IPv6 address.
+// It expects the `addr` to be in the format `host` or `host[:port]`. Where `host` can be
+// an IPv4 address, an IPv6 address, or a hostname that will be resolved via the system resolver.
 func parseNameserverAddr(addr string) (Nameserver, error) {
 	hostStr, port, err := parseHostAndPort(addr)
 	if err != nil {
 		return Nameserver{}, err
 	}
 
-	// Parse the host part into an IP
+	// Strip trailing dot from FQDN hostnames
+	hostStr = strings.TrimSuffix(hostStr, ".")
+
+	// Try parsing as IP first
 	ip := net.ParseIP(hostStr)
+	if ip != nil {
+		return Nameserver{ip, port}, nil
+	}
+
+	// Not an IP, try resolving the hostname
+	ips, err := net.LookupHost(hostStr)
+	if err != nil {
+		return Nameserver{}, fmt.Errorf("failed to resolve nameserver hostname %s: %w", hostStr, err)
+	}
+
+	if len(ips) == 0 {
+		return Nameserver{}, fmt.Errorf("nameserver hostname %s resolved to no addresses", hostStr)
+	}
+
+	ip = net.ParseIP(ips[0])
 	if ip == nil {
-		return Nameserver{}, fmt.Errorf("invalid nameserver IP address: %s", hostStr)
+		return Nameserver{}, fmt.Errorf("nameserver hostname %s resolved to invalid IP: %s", hostStr, ips[0])
 	}
 
 	return Nameserver{ip, port}, nil

@@ -32,4 +32,5 @@ type RecordType uint16
 const (
 	RecordTypeA    = RecordType(dns.TypeA)
 	RecordTypeAAAA = RecordType(dns.TypeAAAA)
+	RecordTypeTXT  = RecordType(dns.TypeTXT)
 )
