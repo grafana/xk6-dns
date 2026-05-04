@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"go.k6.io/k6/js/common"
-	"go.k6.io/k6/js/modules"
-	"go.k6.io/k6/lib"
-	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/v2/js/common"
+	"go.k6.io/k6/v2/js/modules"
+	"go.k6.io/k6/v2/lib"
+	"go.k6.io/k6/v2/lib/netext"
 )
 
 // Client is a DNS resolver that uses the `miekg/dns` package under the hood.

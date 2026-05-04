@@ -27,7 +27,7 @@
         "gomod"
       ],
       "matchPackageNames": [
-        "go.k6.io/k6"
+        "go.k6.io/k6/v2"
       ],
       "groupName": "k6 ecosystem",
       "enabled": true
