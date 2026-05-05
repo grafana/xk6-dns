@@ -852,7 +852,7 @@ func newConfiguredRuntime(t testing.TB) (*modulestest.Runtime, error) {
 	runtime := modulestest.NewRuntime(t)
 
 	err := runtime.SetupModuleSystem(
-		map[string]interface{}{"k6/x/dns": New()},
+		map[string]any{"k6/x/dns": New()},
 		nil,
 		nil,
 	)

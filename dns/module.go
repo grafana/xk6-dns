@@ -59,7 +59,7 @@ func (rm *RootModule) NewModuleInstance(vu modules.VU) modules.Instance {
 
 // Exports returns the module exports, that will be available in the runtime.
 func (mi *ModuleInstance) Exports() modules.Exports {
-	return modules.Exports{Named: map[string]interface{}{
+	return modules.Exports{Named: map[string]any{
 		"resolve": mi.Resolve,
 		"lookup":  mi.Lookup,
 	}}
