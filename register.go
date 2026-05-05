@@ -3,7 +3,7 @@ package dns
 
 import (
 	"github.com/grafana/xk6-dns/dns"
-	"go.k6.io/k6/js/modules"
+	"go.k6.io/k6/v2/js/modules"
 )
 
 // Register the extension on module initialization, available to

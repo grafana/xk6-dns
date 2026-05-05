@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"go.k6.io/k6/js/common"
-	"go.k6.io/k6/js/modules"
-	"go.k6.io/k6/js/promises"
-	"go.k6.io/k6/metrics"
+	"go.k6.io/k6/v2/js/common"
+	"go.k6.io/k6/v2/js/modules"
+	"go.k6.io/k6/v2/js/promises"
+	"go.k6.io/k6/v2/metrics"
 
 	"github.com/grafana/sobek"
 )
@@ -59,7 +59,7 @@ func (rm *RootModule) NewModuleInstance(vu modules.VU) modules.Instance {
 
 // Exports returns the module exports, that will be available in the runtime.
 func (mi *ModuleInstance) Exports() modules.Exports {
-	return modules.Exports{Named: map[string]interface{}{
+	return modules.Exports{Named: map[string]any{
 		"resolve": mi.Resolve,
 		"lookup":  mi.Lookup,
 	}}

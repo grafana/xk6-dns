@@ -11,19 +11,19 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"go.k6.io/k6/lib/netext"
-	"go.k6.io/k6/lib/types"
+	"go.k6.io/k6/v2/lib/netext"
+	"go.k6.io/k6/v2/lib/types"
 
 	"github.com/testcontainers/testcontainers-go"
-	"go.k6.io/k6/metrics"
+	"go.k6.io/k6/v2/metrics"
 
-	"go.k6.io/k6/lib"
+	"go.k6.io/k6/v2/lib"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 
-	"go.k6.io/k6/js/modulestest"
+	"go.k6.io/k6/v2/js/modulestest"
 )
 
 const (
@@ -852,7 +852,7 @@ func newConfiguredRuntime(t testing.TB) (*modulestest.Runtime, error) {
 	runtime := modulestest.NewRuntime(t)
 
 	err := runtime.SetupModuleSystem(
-		map[string]interface{}{"k6/x/dns": New()},
+		map[string]any{"k6/x/dns": New()},
 		nil,
 		nil,
 	)
