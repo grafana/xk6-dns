@@ -2,6 +2,8 @@ module github.com/grafana/xk6-dns
 
 go 1.25.0
 
+toolchain go1.25.10
+
 require (
 	github.com/docker/go-connections v0.6.0
 	github.com/grafana/sobek v0.0.0-20260331145705-2272ac4993ef
