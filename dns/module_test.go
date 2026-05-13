@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.k6.io/k6/v2/lib/netext"
 	"go.k6.io/k6/v2/lib/types"
@@ -117,7 +116,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeA.String() + `",
-				"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+				"127.0.0.1:` + mappedPort.Port() + `"
 			);
 		
 			if (resolveResults.length === 0) {
@@ -168,7 +167,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeA.String() + `",
-					"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+					"127.0.0.1:` + mappedPort.Port() + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -207,7 +206,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeAAAA.String() + `",
-				"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+				"127.0.0.1:` + mappedPort.Port() + `"
 			);
 		
 			// We sort the results to ensure that the order is consistent
@@ -257,7 +256,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeAAAA.String() + `",
-					"127.0.0.1:` + strconv.Itoa(mappedPort.Int()) + `"
+					"127.0.0.1:` + mappedPort.Port() + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -405,7 +404,7 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 				await dns.resolve(
 					"` + testDomain + `",
 					"` + RecordTypeAAAA.String() + `",
-					"[::1]:` + strconv.Itoa(mappedPort.Int()) + `"
+					"[::1]:` + mappedPort.Port() + `"
 				);
 			} catch (err) {
 				// We expect a connection error since ::1 may not be reachable
@@ -874,7 +873,7 @@ func wrapInAsyncLambda(input string) string {
 	return "(async () => {\n " + input + "\n })()"
 }
 
-func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer testcontainers.Container, mappedPort nat.Port) {
+func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer testcontainers.Container, mappedPort network.Port) {
 	recordsConfig := newUnboundRecordsConfiguration(
 		unboundRecord{testDomain, RecordTypeA.String(), primaryTestIPv4},
 		unboundRecord{testDomain, RecordTypeA.String(), secondaryTestIPv4},
