@@ -2,27 +2,19 @@ package dns
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go/wait"
+	miekgdns "github.com/miekg/dns"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.k6.io/k6/v2/js/modulestest"
+	"go.k6.io/k6/v2/lib"
 	"go.k6.io/k6/v2/lib/netext"
 	"go.k6.io/k6/v2/lib/types"
-
-	"github.com/testcontainers/testcontainers-go"
 	"go.k6.io/k6/v2/metrics"
-
-	"go.k6.io/k6/v2/lib"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/stretchr/testify/require"
-
-	"go.k6.io/k6/v2/js/modulestest"
 )
 
 const (
@@ -98,13 +90,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -116,7 +102,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeA.String() + `",
-				"127.0.0.1:` + mappedPort.Port() + `"
+				"127.0.0.1:` + port + `"
 			);
 		
 			if (resolveResults.length === 0) {
@@ -148,13 +134,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -167,7 +147,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeA.String() + `",
-					"127.0.0.1:` + mappedPort.Port() + `"
+					"127.0.0.1:` + port + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -188,13 +168,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -206,7 +180,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeAAAA.String() + `",
-				"127.0.0.1:` + mappedPort.Port() + `"
+				"127.0.0.1:` + port + `"
 			);
 		
 			// We sort the results to ensure that the order is consistent
@@ -237,13 +211,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -256,7 +224,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeAAAA.String() + `",
-					"127.0.0.1:` + mappedPort.Port() + `"
+					"127.0.0.1:` + port + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -343,13 +311,10 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using bare IPv6 loopback nameserver address should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, _ := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		// The DNS server is started just so the next dns.resolve call has a
+		// real local listener to fall back from when it hits ::1. The test only
+		// checks that the nameserver string parses; connection failure is OK.
+		_ = startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -386,13 +351,7 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using IPv6 nameserver with bracket notation and port should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -404,7 +363,7 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 				await dns.resolve(
 					"` + testDomain + `",
 					"` + RecordTypeAAAA.String() + `",
-					"[::1]:` + mappedPort.Port() + `"
+					"[::1]:` + port + `"
 				);
 			} catch (err) {
 				// We expect a connection error since ::1 may not be reachable
@@ -424,13 +383,10 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using bracketed IPv6 nameserver without port should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, _ := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		// The DNS server is started just so the next dns.resolve call has a
+		// real local listener to fall back from when it hits ::1. The test only
+		// checks that the nameserver string parses; connection failure is OK.
+		_ = startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -873,76 +829,55 @@ func wrapInAsyncLambda(input string) string {
 	return "(async () => {\n " + input + "\n })()"
 }
 
-func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer testcontainers.Container, mappedPort network.Port) {
-	recordsConfig := newUnboundRecordsConfiguration(
-		unboundRecord{testDomain, RecordTypeA.String(), primaryTestIPv4},
-		unboundRecord{testDomain, RecordTypeA.String(), secondaryTestIPv4},
-		unboundRecord{testDomain, RecordTypeAAAA.String(), primaryTestIPv6},
-		unboundRecord{testDomain, RecordTypeAAAA.String(), secondaryTestIPv6},
-	)
+// startTestDNSServer starts a small UDP DNS server on a random port of 127.0.0.1
+// that answers A/AAAA queries for testDomain with the test IPs, and returns
+// NXDOMAIN for anything else. The returned port is the listening port; the
+// server is shut down via t.Cleanup.
+//
+// In-process via miekg/dns; no Docker dependency, works identically on every
+// platform.
+func startTestDNSServer(t *testing.T) string {
+	t.Helper()
 
-	network := testcontainers.DockerNetwork{Name: "testcontainers"}
-
-	containerRequest := testcontainers.ContainerRequest{
-		Image: "mvance/unbound:1.20.0",
-		Files: []testcontainers.ContainerFile{
-			{
-				Reader:            strings.NewReader(recordsConfig),
-				ContainerFilePath: "/opt/unbound/etc/unbound/a-records.conf",
-			},
-		},
-		ExposedPorts: []string{"53/tcp", "53/udp"},
-		WaitingFor:   wait.ForListeningPort("53/udp"),
-		Networks:     []string{network.Name},
+	records := map[uint16][]string{
+		miekgdns.TypeA:    {primaryTestIPv4, secondaryTestIPv4},
+		miekgdns.TypeAAAA: {primaryTestIPv6, secondaryTestIPv6},
 	}
 
-	runningContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: containerRequest,
-		Started:          true,
-		Reuse:            false,
+	mux := miekgdns.NewServeMux()
+	mux.HandleFunc(".", func(w miekgdns.ResponseWriter, r *miekgdns.Msg) {
+		m := new(miekgdns.Msg).SetReply(r)
+		m.Authoritative = true
+		for _, q := range r.Question {
+			if !strings.EqualFold(strings.TrimSuffix(q.Name, "."), testDomain) {
+				m.Rcode = miekgdns.RcodeNameError
+				continue
+			}
+			hdr := miekgdns.RR_Header{Name: q.Name, Rrtype: q.Qtype, Class: miekgdns.ClassINET, Ttl: 60}
+			for _, addr := range records[q.Qtype] {
+				switch q.Qtype {
+				case miekgdns.TypeA:
+					m.Answer = append(m.Answer, &miekgdns.A{Hdr: hdr, A: net.ParseIP(addr).To4()})
+				case miekgdns.TypeAAAA:
+					m.Answer = append(m.Answer, &miekgdns.AAAA{Hdr: hdr, AAAA: net.ParseIP(addr).To16()})
+				}
+			}
+		}
+		_ = w.WriteMsg(m)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	mappedPort, err = runningContainer.MappedPort(ctx, "53/udp")
+	pc, err := (&net.ListenConfig{}).ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	return runningContainer, mappedPort
-}
+	srv := &miekgdns.Server{PacketConn: pc, Handler: mux}
+	started := make(chan struct{})
+	srv.NotifyStartedFunc = func() { close(started) }
+	go func() { _ = srv.ActivateAndServe() }()
+	<-started
+	t.Cleanup(func() { _ = srv.Shutdown() })
 
-// newUnboundRecordsConfiguration creates a new unbound configuration with the provided records.
-//
-// It returns a string that can be used to configure (as the content of a file an unbound server to resolve the provided
-// records.
-func newUnboundRecordsConfiguration(records ...unboundRecord) string {
-	var sb strings.Builder
-	for _, record := range records {
-		sb.WriteString(record.String())
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// unboundRecord holds the information necessary to configure an unbound server to resolve a domain
-// to a specific IP address.
-//
-// Specifically this is used to generate the local-data configuration entries for unbound.
-type unboundRecord struct {
-	// Domain holds the domain name to resolve.
-	Domain string
-
-	// RecordType holds the record type to resolve the domain to.
-	RecordType string
-
-	// IP holds the IP address to resolve the domain to.
-	IP string
-}
-
-// String returns the unbound configuration entry for the unboundRecord.
-func (c unboundRecord) String() string {
-	return fmt.Sprintf(`local-data: "%s. 0 IN %s %s"`, c.Domain, c.RecordType, c.IP)
+	_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
+	return port
 }
 
 func newTestVUState() *lib.State {
