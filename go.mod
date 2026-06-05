@@ -6,7 +6,7 @@ toolchain go1.25.11
 
 require (
 	github.com/grafana/sobek v0.0.0-20260331145705-2272ac4993ef
-	github.com/miekg/dns v1.1.68
+	github.com/miekg/dns v1.1.72
 	github.com/stretchr/testify v1.11.1
 	go.k6.io/k6/v2 v2.0.0-rc1
 )
