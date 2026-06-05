@@ -2,27 +2,19 @@ package dns
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go/wait"
+	miekgdns "github.com/miekg/dns"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.k6.io/k6/v2/js/modulestest"
+	"go.k6.io/k6/v2/lib"
 	"go.k6.io/k6/v2/lib/netext"
 	"go.k6.io/k6/v2/lib/types"
-
-	"github.com/testcontainers/testcontainers-go"
 	"go.k6.io/k6/v2/metrics"
-
-	"go.k6.io/k6/v2/lib"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/stretchr/testify/require"
-
-	"go.k6.io/k6/v2/js/modulestest"
 )
 
 const (
@@ -98,13 +90,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port, _ := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -116,7 +102,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeA.String() + `",
-				"127.0.0.1:` + mappedPort.Port() + `"
+				"127.0.0.1:` + port + `"
 			);
 		
 			if (resolveResults.length === 0) {
@@ -148,13 +134,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing A records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port, _ := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -167,7 +147,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeA.String() + `",
-					"127.0.0.1:` + mappedPort.Port() + `"
+					"127.0.0.1:` + port + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -188,13 +168,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port, _ := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -206,7 +180,7 @@ func TestClient_Resolve(t *testing.T) {
 			const resolveResults = await dns.resolve(
 				"` + testDomain + `",
 				"` + RecordTypeAAAA.String() + `",
-				"127.0.0.1:` + mappedPort.Port() + `"
+				"127.0.0.1:` + port + `"
 			);
 		
 			// We sort the results to ensure that the order is consistent
@@ -237,13 +211,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("Resolving non-existing AAAA records against test nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		port, _ := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -256,7 +224,7 @@ func TestClient_Resolve(t *testing.T) {
 				const resolvedResults = await dns.resolve(
 					"missing.domain",
 					"` + RecordTypeAAAA.String() + `",
-					"127.0.0.1:` + mappedPort.Port() + `"
+					"127.0.0.1:` + port + `"
 				);
 			} catch (err) {
 				if (err.name !== "NonExistingDomain") {
@@ -343,13 +311,8 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using bare IPv6 loopback nameserver address should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, _ := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		// No server needed — the test only verifies the nameserver string
+		// parses; the dial against ::1:53 fails locally, which is fine.
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -386,13 +349,7 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using IPv6 nameserver with bracket notation and port should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, mappedPort := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		_, ipv6Port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -400,20 +357,14 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
-			try {
-				await dns.resolve(
-					"` + testDomain + `",
-					"` + RecordTypeAAAA.String() + `",
-					"[::1]:` + mappedPort.Port() + `"
-				);
-			} catch (err) {
-				// We expect a connection error since ::1 may not be reachable
-				// but the parse should succeed
-				if (err.message && err.message.includes("invalid nameserver")) {
-					throw "IPv6 bracket notation parsing failed: " + err.message;
-				}
-				// Connection failure is expected - parsing succeeded
-				return;
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeAAAA.String() + `",
+				"[::1]:` + ipv6Port + `"
+			);
+
+			if (resolveResults.length !== 2) {
+				throw "expected 2 AAAA records, got " + resolveResults.length;
 			}
 		`
 
@@ -424,13 +375,8 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 	t.Run("Resolving using bracketed IPv6 nameserver without port should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-		unboundContainer, _ := startUnboundContainer(ctx, t)
-		defer func() {
-			if err := unboundContainer.Terminate(ctx); err != nil {
-				t.Fatalf("could not stop unbound: %s", err.Error())
-			}
-		}()
+		// No server needed — the test only verifies the nameserver string
+		// parses; the dial against ::1:53 fails locally, which is fine.
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -486,57 +432,10 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Resolving AAAA records using public IPv6 nameserver should succeed", func(t *testing.T) {
+	t.Run("Resolving AAAA records using IPv6 nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
 
-		runtime, err := newConfiguredRuntime(t)
-		require.NoError(t, err)
-
-		runtime.MoveToVUContext(newTestVUState())
-
-		// This is the exact case from issue #20 - using Cloudflare's IPv6 DNS
-		// This test may fail in environments without IPv6 connectivity
-		testScript := `
-			try {
-				const resolveResults = await dns.resolve(
-					"k6.io",
-					"` + RecordTypeAAAA.String() + `",
-					"2606:4700:4700::1111"
-				);
-
-				if (resolveResults.length === 0) {
-					throw "Expected at least one IPv6 address for k6.io";
-				}
-			} catch (err) {
-				// Get error message - handle both Go errors (string) and JS Error objects
-				const errMsg = (err.message || err.toString());
-
-				// If the error is about parsing, that's a real failure
-				if (errMsg.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + errMsg;
-				}
-
-				// If IPv6 is not available in the test environment, skip gracefully
-				if (
-					errMsg.includes("network is unreachable") ||
-					errMsg.includes("no route to host") ||
-					errMsg.includes("connect: cannot assign requested address")
-				) {
-					// IPv6 not available - test passes (skip)
-					return;
-				}
-
-				// Other errors are real failures
-				throw err;
-			}
-		`
-
-		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
-		assert.NoError(t, err)
-	})
-
-	t.Run("Resolving AAAA records using public IPv6 nameserver with brackets and port should succeed", func(t *testing.T) {
-		t.Parallel()
+		_, ipv6Port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -544,33 +443,14 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		runtime.MoveToVUContext(newTestVUState())
 
 		testScript := `
-			try {
-				const resolveResults = await dns.resolve(
-					"k6.io",
-					"` + RecordTypeAAAA.String() + `",
-					"[2606:4700:4700::1111]:53"
-				);
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeAAAA.String() + `",
+				"[::1]:` + ipv6Port + `"
+			);
 
-				if (resolveResults.length === 0) {
-					throw "Expected at least one IPv6 address for k6.io";
-				}
-			} catch (err) {
-				const errMsg = (err.message || err.toString());
-
-				if (errMsg.includes("invalid nameserver")) {
-					throw "IPv6 nameserver with brackets parsing failed: " + errMsg;
-				}
-
-				if (
-					errMsg.includes("network is unreachable") ||
-					errMsg.includes("no route to host") ||
-					errMsg.includes("connect: cannot assign requested address")
-				) {
-					// IPv6 not available - test passes (skip)
-					return;
-				}
-
-				throw err;
+			if (resolveResults.length !== 2) {
+				throw "expected 2 AAAA records, got " + resolveResults.length;
 			}
 		`
 
@@ -578,43 +458,25 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Resolving A records using public IPv6 nameserver should succeed", func(t *testing.T) {
+	t.Run("Resolving AAAA records using IPv6 nameserver with brackets and port should succeed", func(t *testing.T) {
 		t.Parallel()
+
+		_, ipv6Port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
 
 		runtime.MoveToVUContext(newTestVUState())
 
-		// Test that IPv6 nameservers work for A record queries too
 		testScript := `
-			try {
-				const resolveResults = await dns.resolve(
-					"k6.io",
-					"` + RecordTypeA.String() + `",
-					"2606:4700:4700::1111"
-				);
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeAAAA.String() + `",
+				"[::1]:` + ipv6Port + `"
+			);
 
-				if (resolveResults.length === 0) {
-					throw "Expected at least one IPv4 address for k6.io";
-				}
-			} catch (err) {
-				const errMsg = (err.message || err.toString());
-
-				if (errMsg.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + errMsg;
-				}
-
-				if (
-					errMsg.includes("network is unreachable") ||
-					errMsg.includes("no route to host") ||
-					errMsg.includes("connect: cannot assign requested address")
-				) {
-					// IPv6 not available - test passes (skip)
-					return;
-				}
-
-				throw err;
+			if (resolveResults.length !== 2) {
+				throw "expected 2 AAAA records, got " + resolveResults.length;
 			}
 		`
 
@@ -622,8 +484,38 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Resolving non-existing domain against public IPv6 nameserver should return NonExistingDomain error", func(t *testing.T) {
+	t.Run("Resolving A records using IPv6 nameserver should succeed", func(t *testing.T) {
 		t.Parallel()
+
+		_, ipv6Port := startTestDNSServer(t)
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		// Asking for A records via an IPv6 nameserver — checks both code paths
+		// (socket family v6, response type v4).
+		testScript := `
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeA.String() + `",
+				"[::1]:` + ipv6Port + `"
+			);
+
+			if (resolveResults.length !== 2) {
+				throw "expected 2 A records, got " + resolveResults.length;
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving non-existing domain against IPv6 nameserver should return NonExistingDomain error", func(t *testing.T) {
+		t.Parallel()
+
+		_, ipv6Port := startTestDNSServer(t)
 
 		runtime, err := newConfiguredRuntime(t)
 		require.NoError(t, err)
@@ -633,34 +525,14 @@ func TestClient_ResolveIPv6Nameservers(t *testing.T) {
 		testScript := `
 			try {
 				await dns.resolve(
-					"this-domain-definitely-does-not-exist-12345.com",
+					"missing.domain",
 					"` + RecordTypeAAAA.String() + `",
-					"[2606:4700:4700::1111]:53"
+					"[::1]:` + ipv6Port + `"
 				);
 			} catch (err) {
-				const errMsg = (err.message || err.toString());
-
-				// Check if it's a parsing error first (that would be a bug)
-				if (errMsg.includes("invalid nameserver")) {
-					throw "IPv6 nameserver parsing failed: " + errMsg;
-				}
-
-				// If IPv6 is not available, skip
-				if (
-					errMsg.includes("network is unreachable") ||
-					errMsg.includes("no route to host") ||
-					errMsg.includes("connect: cannot assign requested address")
-				) {
-					// IPv6 not available - test passes (skip)
-					return;
-				}
-
-				// We expect NonExistingDomain error
 				if (err.name !== "NonExistingDomain") {
 					throw "Expected NonExistingDomain error, got: " + err.name;
 				}
-
-				// Expected error received
 				return;
 			}
 
@@ -873,76 +745,56 @@ func wrapInAsyncLambda(input string) string {
 	return "(async () => {\n " + input + "\n })()"
 }
 
-func startUnboundContainer(ctx context.Context, t *testing.T) (runningContainer testcontainers.Container, mappedPort network.Port) {
-	recordsConfig := newUnboundRecordsConfiguration(
-		unboundRecord{testDomain, RecordTypeA.String(), primaryTestIPv4},
-		unboundRecord{testDomain, RecordTypeA.String(), secondaryTestIPv4},
-		unboundRecord{testDomain, RecordTypeAAAA.String(), primaryTestIPv6},
-		unboundRecord{testDomain, RecordTypeAAAA.String(), secondaryTestIPv6},
-	)
+// startTestDNSServer starts small UDP DNS servers on random ports of
+// 127.0.0.1 and [::1] sharing the same handler — they answer A/AAAA queries
+// for testDomain with the test IPs, and return NXDOMAIN for anything else.
+// Both listeners shut down via t.Cleanup.
+//
+// In-process via miekg/dns; no Docker dependency, works identically on every
+// platform that has loopback (which is every platform).
+func startTestDNSServer(t *testing.T) (ipv4Port, ipv6Port string) {
+	t.Helper()
 
-	network := testcontainers.DockerNetwork{Name: "testcontainers"}
-
-	containerRequest := testcontainers.ContainerRequest{
-		Image: "mvance/unbound:1.20.0",
-		Files: []testcontainers.ContainerFile{
-			{
-				Reader:            strings.NewReader(recordsConfig),
-				ContainerFilePath: "/opt/unbound/etc/unbound/a-records.conf",
-			},
-		},
-		ExposedPorts: []string{"53/tcp", "53/udp"},
-		WaitingFor:   wait.ForListeningPort("53/udp"),
-		Networks:     []string{network.Name},
+	records := map[uint16][]string{
+		miekgdns.TypeA:    {primaryTestIPv4, secondaryTestIPv4},
+		miekgdns.TypeAAAA: {primaryTestIPv6, secondaryTestIPv6},
 	}
 
-	runningContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: containerRequest,
-		Started:          true,
-		Reuse:            false,
+	handler := miekgdns.HandlerFunc(func(w miekgdns.ResponseWriter, r *miekgdns.Msg) {
+		m := new(miekgdns.Msg).SetReply(r)
+		m.Authoritative = true
+		for _, q := range r.Question {
+			if !strings.EqualFold(strings.TrimSuffix(q.Name, "."), testDomain) {
+				m.Rcode = miekgdns.RcodeNameError
+				continue
+			}
+			hdr := miekgdns.RR_Header{Name: q.Name, Rrtype: q.Qtype, Class: miekgdns.ClassINET, Ttl: 60}
+			for _, addr := range records[q.Qtype] {
+				switch q.Qtype {
+				case miekgdns.TypeA:
+					m.Answer = append(m.Answer, &miekgdns.A{Hdr: hdr, A: net.ParseIP(addr).To4()})
+				case miekgdns.TypeAAAA:
+					m.Answer = append(m.Answer, &miekgdns.AAAA{Hdr: hdr, AAAA: net.ParseIP(addr).To16()})
+				}
+			}
+		}
+		_ = w.WriteMsg(m)
 	})
-	if err != nil {
-		t.Fatal(err)
+
+	listen := func(network, addr string) string {
+		pc, err := (&net.ListenConfig{}).ListenPacket(context.Background(), network, addr)
+		require.NoError(t, err)
+		srv := &miekgdns.Server{PacketConn: pc, Handler: handler}
+		started := make(chan struct{})
+		srv.NotifyStartedFunc = func() { close(started) }
+		go func() { _ = srv.ActivateAndServe() }()
+		<-started
+		t.Cleanup(func() { _ = srv.Shutdown() })
+		_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
+		return port
 	}
 
-	mappedPort, err = runningContainer.MappedPort(ctx, "53/udp")
-	require.NoError(t, err)
-
-	return runningContainer, mappedPort
-}
-
-// newUnboundRecordsConfiguration creates a new unbound configuration with the provided records.
-//
-// It returns a string that can be used to configure (as the content of a file an unbound server to resolve the provided
-// records.
-func newUnboundRecordsConfiguration(records ...unboundRecord) string {
-	var sb strings.Builder
-	for _, record := range records {
-		sb.WriteString(record.String())
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// unboundRecord holds the information necessary to configure an unbound server to resolve a domain
-// to a specific IP address.
-//
-// Specifically this is used to generate the local-data configuration entries for unbound.
-type unboundRecord struct {
-	// Domain holds the domain name to resolve.
-	Domain string
-
-	// RecordType holds the record type to resolve the domain to.
-	RecordType string
-
-	// IP holds the IP address to resolve the domain to.
-	IP string
-}
-
-// String returns the unbound configuration entry for the unboundRecord.
-func (c unboundRecord) String() string {
-	return fmt.Sprintf(`local-data: "%s. 0 IN %s %s"`, c.Domain, c.RecordType, c.IP)
+	return listen("udp4", "127.0.0.1:0"), listen("udp6", "[::1]:0")
 }
 
 func newTestVUState() *lib.State {
