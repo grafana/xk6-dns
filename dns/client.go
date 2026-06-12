@@ -125,7 +125,7 @@ func (r *Client) Resolve(
 		case *dns.AAAA:
 			results = append(results, t.AAAA.String())
 		case *dns.TXT:
-			results = append(results, t.Txt...)
+			results = append(results, strings.Join(t.Txt, ""))
 		default:
 			return nil, fmt.Errorf(
 				"resolve operation failed with %w: unhandled DNS answer type %T",

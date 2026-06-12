@@ -97,6 +97,23 @@ func (mi *ModuleInstance) Resolve(query, recordType, nameserverAddr sobek.Value)
 		return promise
 	}
 
+	ipAddrs, err := mi.dnsClient.Lookup(mi.vu.Context(), nameserverAddrStr)
+	if err != nil {
+		var customErr *Error
+
+		if errors.As(err, &customErr) && customErr.Name == "BlockedHostname" {
+			reject(fmt.Errorf("caught blocked host Message: %v", customErr.Message))
+			return promise
+		}
+	} else {
+		if len(ipAddrs) == 0 {
+			reject(fmt.Errorf("nameserver hostname %s resolved to no addresses", nameserverAddr))
+			return promise
+		}
+
+		nameserverAddrStr = ipAddrs[0]
+	}
+
 	nameserver, err := parseNameserverAddr(nameserverAddrStr)
 	if err != nil {
 		reject(fmt.Errorf("parsing nameserver address failed: %w", err))
