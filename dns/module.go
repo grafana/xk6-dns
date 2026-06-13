@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"time"
 
 	"go.k6.io/k6/v2/js/common"
@@ -96,31 +95,6 @@ func (mi *ModuleInstance) Resolve(query, recordType, nameserverAddr sobek.Value)
 	if err := mi.vu.Runtime().ExportTo(nameserverAddr, &nameserverAddrStr); err != nil {
 		reject(fmt.Errorf("nameserver must be a string; got %v instead", nameserverAddr))
 		return promise
-	}
-
-	// Parse host/port first to check if it's already an IP
-	host, _, parseErr := parseHostAndPort(nameserverAddrStr)
-	if parseErr == nil && net.ParseIP(host) == nil {
-		// Host is not an IP, resolve it using k6's dialer
-		ipAddrs, lookupErr := mi.dnsClient.Lookup(mi.vu.Context(), host)
-		if lookupErr != nil {
-			var customErr *Error
-			if errors.As(lookupErr, &customErr) && customErr.Name == "BlockedHostname" {
-				reject(fmt.Errorf("caught blocked host Message: %v", customErr.Message))
-				return promise
-			}
-
-			reject(fmt.Errorf("failed to resolve nameserver hostname: %w", lookupErr))
-			return promise
-		}
-
-		if len(ipAddrs) == 0 {
-			reject(fmt.Errorf("nameserver hostname %s resolved to no addresses", host))
-			return promise
-		}
-
-		// Replace hostname with resolved IP, preserving original port
-		nameserverAddrStr = ipAddrs[0] + nameserverAddrStr[len(host):]
 	}
 
 	nameserver, err := parseNameserverAddr(nameserverAddrStr)
