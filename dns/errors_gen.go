@@ -4,11 +4,14 @@ package dns
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
-	_errorKindName_0 = "FormatErrorServerFailureNonExistingDomainNotImplementedRefusedYXDomainYXRrsetNXRrsetNotAuthNotZone"
-	_errorKindName_1 = "BadVersBadKeyBadTimeBadModeBadNameBadAlgBadTruncBadCookie"
+	_errorKindName_0      = "FormatErrorServerFailureNonExistingDomainNotImplementedRefusedYXDomainYXRrsetNXRrsetNotAuthNotZone"
+	_errorKindLowerName_0 = "formaterrorserverfailurenonexistingdomainnotimplementedrefusedyxdomainyxrrsetnxrrsetnotauthnotzone"
+	_errorKindName_1      = "BadVersBadKeyBadTimeBadModeBadNameBadAlgBadTruncBadCookie"
+	_errorKindLowerName_1 = "badversbadkeybadtimebadmodebadnamebadalgbadtruncbadcookie"
 )
 
 var (
@@ -29,27 +32,90 @@ func (i errorKind) String() string {
 	}
 }
 
-var _errorKindValues = []errorKind{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 17, 18, 19, 20, 21, 22, 23}
+// An "invalid array index" compiler error signifies that the constant values have changed.
+// Re-run the stringer command to generate them again.
+func _errorKindNoOp() {
+	var x [1]struct{}
+	_ = x[FormatError-(1)]
+	_ = x[ServerFailure-(2)]
+	_ = x[NonExistingDomain-(3)]
+	_ = x[NotImplemented-(4)]
+	_ = x[Refused-(5)]
+	_ = x[YXDomain-(6)]
+	_ = x[YXRrset-(7)]
+	_ = x[NXRrset-(8)]
+	_ = x[NotAuth-(9)]
+	_ = x[NotZone-(10)]
+	_ = x[BadVers-(16)]
+	_ = x[BadKey-(17)]
+	_ = x[BadTime-(18)]
+	_ = x[BadMode-(19)]
+	_ = x[BadName-(20)]
+	_ = x[BadAlg-(21)]
+	_ = x[BadTrunc-(22)]
+	_ = x[BadCookie-(23)]
+}
+
+var _errorKindValues = []errorKind{FormatError, ServerFailure, NonExistingDomain, NotImplemented, Refused, YXDomain, YXRrset, NXRrset, NotAuth, NotZone, BadVers, BadKey, BadTime, BadMode, BadName, BadAlg, BadTrunc, BadCookie}
 
 var _errorKindNameToValueMap = map[string]errorKind{
-	_errorKindName_0[0:11]:  1,
-	_errorKindName_0[11:24]: 2,
-	_errorKindName_0[24:41]: 3,
-	_errorKindName_0[41:55]: 4,
-	_errorKindName_0[55:62]: 5,
-	_errorKindName_0[62:70]: 6,
-	_errorKindName_0[70:77]: 7,
-	_errorKindName_0[77:84]: 8,
-	_errorKindName_0[84:91]: 9,
-	_errorKindName_0[91:98]: 10,
-	_errorKindName_1[0:7]:   16,
-	_errorKindName_1[7:13]:  17,
-	_errorKindName_1[13:20]: 18,
-	_errorKindName_1[20:27]: 19,
-	_errorKindName_1[27:34]: 20,
-	_errorKindName_1[34:40]: 21,
-	_errorKindName_1[40:48]: 22,
-	_errorKindName_1[48:57]: 23,
+	_errorKindName_0[0:11]:       FormatError,
+	_errorKindLowerName_0[0:11]:  FormatError,
+	_errorKindName_0[11:24]:      ServerFailure,
+	_errorKindLowerName_0[11:24]: ServerFailure,
+	_errorKindName_0[24:41]:      NonExistingDomain,
+	_errorKindLowerName_0[24:41]: NonExistingDomain,
+	_errorKindName_0[41:55]:      NotImplemented,
+	_errorKindLowerName_0[41:55]: NotImplemented,
+	_errorKindName_0[55:62]:      Refused,
+	_errorKindLowerName_0[55:62]: Refused,
+	_errorKindName_0[62:70]:      YXDomain,
+	_errorKindLowerName_0[62:70]: YXDomain,
+	_errorKindName_0[70:77]:      YXRrset,
+	_errorKindLowerName_0[70:77]: YXRrset,
+	_errorKindName_0[77:84]:      NXRrset,
+	_errorKindLowerName_0[77:84]: NXRrset,
+	_errorKindName_0[84:91]:      NotAuth,
+	_errorKindLowerName_0[84:91]: NotAuth,
+	_errorKindName_0[91:98]:      NotZone,
+	_errorKindLowerName_0[91:98]: NotZone,
+	_errorKindName_1[0:7]:        BadVers,
+	_errorKindLowerName_1[0:7]:   BadVers,
+	_errorKindName_1[7:13]:       BadKey,
+	_errorKindLowerName_1[7:13]:  BadKey,
+	_errorKindName_1[13:20]:      BadTime,
+	_errorKindLowerName_1[13:20]: BadTime,
+	_errorKindName_1[20:27]:      BadMode,
+	_errorKindLowerName_1[20:27]: BadMode,
+	_errorKindName_1[27:34]:      BadName,
+	_errorKindLowerName_1[27:34]: BadName,
+	_errorKindName_1[34:40]:      BadAlg,
+	_errorKindLowerName_1[34:40]: BadAlg,
+	_errorKindName_1[40:48]:      BadTrunc,
+	_errorKindLowerName_1[40:48]: BadTrunc,
+	_errorKindName_1[48:57]:      BadCookie,
+	_errorKindLowerName_1[48:57]: BadCookie,
+}
+
+var _errorKindNames = []string{
+	_errorKindName_0[0:11],
+	_errorKindName_0[11:24],
+	_errorKindName_0[24:41],
+	_errorKindName_0[41:55],
+	_errorKindName_0[55:62],
+	_errorKindName_0[62:70],
+	_errorKindName_0[70:77],
+	_errorKindName_0[77:84],
+	_errorKindName_0[84:91],
+	_errorKindName_0[91:98],
+	_errorKindName_1[0:7],
+	_errorKindName_1[7:13],
+	_errorKindName_1[13:20],
+	_errorKindName_1[20:27],
+	_errorKindName_1[27:34],
+	_errorKindName_1[34:40],
+	_errorKindName_1[40:48],
+	_errorKindName_1[48:57],
 }
 
 // errorKindString retrieves an enum value from the enum constants string name.
@@ -58,12 +124,23 @@ func errorKindString(s string) (errorKind, error) {
 	if val, ok := _errorKindNameToValueMap[s]; ok {
 		return val, nil
 	}
+
+	if val, ok := _errorKindNameToValueMap[strings.ToLower(s)]; ok {
+		return val, nil
+	}
 	return 0, fmt.Errorf("%s does not belong to errorKind values", s)
 }
 
 // errorKindValues returns all values of the enum
 func errorKindValues() []errorKind {
 	return _errorKindValues
+}
+
+// errorKindStrings returns a slice of all String values of the enum
+func errorKindStrings() []string {
+	strs := make([]string, len(_errorKindNames))
+	copy(strs, _errorKindNames)
+	return strs
 }
 
 // IsAerrorKind returns "true" if the value is listed in the enum definition. "false" otherwise

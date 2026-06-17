@@ -108,7 +108,7 @@ func (mi *ModuleInstance) Resolve(query, recordType, nameserverAddr sobek.Value)
 		resolutionStartTime := time.Now()
 
 		// Resolve the query
-		fetchedIPs, resolveErr := mi.dnsClient.Resolve(mi.vu.Context(), queryStr, recordTypeStr, nameserver)
+		results, resolveErr := mi.dnsClient.Resolve(mi.vu.Context(), queryStr, recordTypeStr, nameserver)
 
 		// Stop the timer for resolution
 		sinceResolutionStart := time.Since(resolutionStartTime).Milliseconds()
@@ -129,7 +129,7 @@ func (mi *ModuleInstance) Resolve(query, recordType, nameserverAddr sobek.Value)
 			return
 		}
 
-		resolve(fetchedIPs)
+		resolve(results)
 	}()
 
 	return promise

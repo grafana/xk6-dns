@@ -36,9 +36,13 @@ export const options = {
 };
 
 export default async function() {
-    // Request the IP address of k6.io from the selected namerserver A records.
+    // Request the IP address of k6.io from the selected nameserver A records.
     const resolvedIP = await dns.resolve('k6.io', 'A', '9.9.9.9:53');
     console.log(`k6.io IPs as resolved against the 9.9.9.9 nameserver: ${resolvedIP}`);
+
+    // Request the TXT records for k6.io from the selected nameserver.
+    const txtRecords = await dns.resolve('k6.io', 'TXT', '9.9.9.9:53');
+    console.log(`k6.io TXT records: ${txtRecords}`);
     
     // Lookup the IP address of k6.io using the system's default DNS server.
     const lookupIP = await dns.lookup('k6.io');
@@ -81,9 +85,9 @@ default ✓ [======================================] 10 VUs  00m00.2s/10m0s  200
 
 ### `dns.resolve(query, recordType, options)`
 
-Resolves a DNS name to an IP address using the provided DNS server. It returns an array of IP addresses.
+Resolves a DNS query using the provided DNS server. It returns an array of results: IP addresses for `A`/`AAAA` records, or strings for `TXT` records.
 
-The `query` parameter is the DNS name to resolve, the `recordType` parameter is the type of DNS record to query for (e.g. 'A', 'AAAA', 'CNAME', 'NS', and 'PTR'), and the `options` parameter is an object that can contain the following properties:
+The `query` parameter is the DNS name to resolve, the `recordType` parameter is the type of DNS record to query for (e.g. 'A', 'AAAA', 'TXT'), and the `options` parameter is an object that can contain the following properties:
 - `nameserver` - the IP address and port of the DNS server to query. It should be in the format `ip:port`. If not provided, the system's default DNS server will be used.
 
 Using the `dns.resolve()` operation will emit the following metrics:

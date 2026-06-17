@@ -26,7 +26,7 @@ func (n Nameserver) Addr() string {
 	return n.IP.String() + ":" + strconv.Itoa(int(n.Port))
 }
 
-// ParseNameserverAddr parses a nameserver address string into an IP and a port.
+// parseNameserverAddr parses a nameserver address string into an IP and a port.
 //
 // It expects the `addr` to be in the format `ip` or `ip[:port]`. Where `ip` can be an IPv4 or an IPv6 address.
 func parseNameserverAddr(addr string) (Nameserver, error) {

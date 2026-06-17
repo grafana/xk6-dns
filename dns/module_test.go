@@ -49,6 +49,10 @@ const (
 	// testDomain to. This points to the same IP as secondaryTestIPv4, and is subject to the same routing
 	// constraints.
 	secondaryTestIPv6 = "fd61:76ff:fe12:3456:789a:bcde:f012:6789"
+
+	// primaryTestTXT is a TXT record value we configure our test DNS server to resolve
+	// the testDomain to.
+	primaryTestTXT = "v=spf1 include:example.com ~all"
 )
 
 func TestClient_Resolve(t *testing.T) {
@@ -236,6 +240,68 @@ func TestClient_Resolve(t *testing.T) {
 			}
 		
 			throw "Resolving missing.domain against unbound server test container should have thrown an error, but it didn't"
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving existing TXT records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		port, _ := startTestDNSServer(t)
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeTXT.String() + `",
+				"127.0.0.1:` + port + `"
+			);
+		
+			if (resolveResults.length === 0) {
+				throw "Resolving ` + testDomain + ` TXT against test nameserver returned no results, expected at least one TXT record"
+			}
+		
+			if (resolveResults[0] !== "` + primaryTestTXT + `") {
+				throw "Resolving ` + testDomain + ` TXT against test nameserver returned unexpected result, expected '` + primaryTestTXT + `', got " + resolveResults[0]
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving non-existing TXT records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		port, _ := startTestDNSServer(t)
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				const resolvedResults = await dns.resolve(
+					"missing.domain",
+					"` + RecordTypeTXT.String() + `",
+					"127.0.0.1:` + port + `"
+				);
+			} catch (err) {
+				if (err.name !== "NonExistingDomain") {
+					throw "Resolving missing.domain TXT against test nameserver returned unexpected error, expected NonExistingDomain, got: " + err.name
+				}
+		
+				return
+			}
+		
+			throw "Resolving missing.domain TXT against test nameserver should have thrown an error, but it didn't"
 		`
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
@@ -746,8 +812,8 @@ func wrapInAsyncLambda(input string) string {
 }
 
 // startTestDNSServer starts small UDP DNS servers on random ports of
-// 127.0.0.1 and [::1] sharing the same handler — they answer A/AAAA queries
-// for testDomain with the test IPs, and return NXDOMAIN for anything else.
+// 127.0.0.1 and [::1] sharing the same handler — they answer A/AAAA/TXT queries
+// for testDomain with the test IPs and TXT records, and return NXDOMAIN for anything else.
 // Both listeners shut down via t.Cleanup.
 //
 // In-process via miekg/dns; no Docker dependency, works identically on every
@@ -758,6 +824,7 @@ func startTestDNSServer(t *testing.T) (ipv4Port, ipv6Port string) {
 	records := map[uint16][]string{
 		miekgdns.TypeA:    {primaryTestIPv4, secondaryTestIPv4},
 		miekgdns.TypeAAAA: {primaryTestIPv6, secondaryTestIPv6},
+		miekgdns.TypeTXT:  {primaryTestTXT},
 	}
 
 	handler := miekgdns.HandlerFunc(func(w miekgdns.ResponseWriter, r *miekgdns.Msg) {
@@ -775,6 +842,8 @@ func startTestDNSServer(t *testing.T) (ipv4Port, ipv6Port string) {
 					m.Answer = append(m.Answer, &miekgdns.A{Hdr: hdr, A: net.ParseIP(addr).To4()})
 				case miekgdns.TypeAAAA:
 					m.Answer = append(m.Answer, &miekgdns.AAAA{Hdr: hdr, AAAA: net.ParseIP(addr).To16()})
+				case miekgdns.TypeTXT:
+					m.Answer = append(m.Answer, &miekgdns.TXT{Hdr: hdr, Txt: []string{addr}})
 				}
 			}
 		}
