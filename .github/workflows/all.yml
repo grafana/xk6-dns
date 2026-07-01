@@ -16,6 +16,6 @@ jobs:
   k6-ci:
     permissions:
       contents: read
-    uses: grafana/k6-ci/.github/workflows/all.yml@a7138bd426a25e8472abf4e8b37f2ab9f09c866a # v0.2.0
+    uses: grafana/k6-ci/.github/workflows/all.yml@143ec80c1678ae96a54b82389ea862d4748c27e1 # v0.3.0
     with:
-      k6-ci-ref: a7138bd426a25e8472abf4e8b37f2ab9f09c866a # v0.2.0
+      k6-ci-ref: 143ec80c1678ae96a54b82389ea862d4748c27e1 # v0.3.0
