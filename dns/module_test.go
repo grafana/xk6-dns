@@ -3,7 +3,6 @@ package dns
 import (
 	"context"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -333,9 +332,10 @@ func TestClient_Resolve(t *testing.T) {
 			if (resolveResults.length === 0) {
 				throw "Resolving ` + testDomain + ` NAPTR against test nameserver returned no results, expected at least one NAPTR record"
 			}
-		
-			if (resolveResults[0] !== ` + strconv.Quote(primaryTestNAPTR) + `) {
-				throw "Resolving ` + testDomain + ` NAPTR against test nameserver returned unexpected result, expected " + ` + strconv.Quote(primaryTestNAPTR) + ` + ", got " + resolveResults[0]
+
+			const expected = '` + primaryTestNAPTR + `';
+			if (resolveResults[0] !== expected) {
+				throw "Resolving ` + testDomain + ` NAPTR against test nameserver returned unexpected result, expected '" + expected + "', got " + resolveResults[0]
 			}
 		`
 

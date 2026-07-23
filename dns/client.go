@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -286,12 +285,8 @@ func (r *Client) ensureK6Client() (err error) {
 	return err
 }
 
-// Format NAPTR answer.
+// fmtNAPTRAnswer formats a NAPTR answer in DNS presentation format (rdata only).
+// It reuses miekg/dns's NAPTR.String() and strips the RR header prefix.
 func fmtNAPTRAnswer(answer *dns.NAPTR) string {
-	return strconv.Itoa(int(answer.Order)) + " " +
-		strconv.Itoa(int(answer.Preference)) + " " +
-		"\"" + answer.Flags + "\" " +
-		"\"" + answer.Service + "\" " +
-		"\"" + answer.Regexp + "\" " +
-		answer.Replacement
+	return strings.TrimPrefix(answer.String(), answer.Hdr.String())
 }
