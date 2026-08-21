@@ -14,10 +14,10 @@ import "github.com/miekg/dns"
 // - NAPTR
 //
 // The supported values are the ones that are most likely to be
-// used by the users of this extension and package, as they are
-// those returning IP addresses. Other record types could be
-// supported later on, as long as we extend our resolver's logic
-// to support them.
+// used by the users of this extension and package: address records
+// (A, AAAA) and common string records (TXT, NAPTR). Other record
+// types could be supported later on, as long as we extend our
+// resolver's logic to support them.
 //
 // We use a custom type to restrict the set of values, and to
 // avoid leaking the underlying dns package's types to the
