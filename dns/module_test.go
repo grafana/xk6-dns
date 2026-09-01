@@ -53,6 +53,10 @@ const (
 	// primaryTestTXT is a TXT record value we configure our test DNS server to resolve
 	// the testDomain to.
 	primaryTestTXT = "v=spf1 include:example.com ~all"
+
+	// primaryTestNAPTR is a default NAPTR response we configure our DNS server to
+	// resolve the testDomain to.
+	primaryTestNAPTR = "100 10 \"U\" \"E2U+sip\" \"!^.*$!sip:customer-service@example.com!\" ."
 )
 
 func TestClient_Resolve(t *testing.T) {
@@ -302,6 +306,69 @@ func TestClient_Resolve(t *testing.T) {
 			}
 		
 			throw "Resolving missing.domain TXT against test nameserver should have thrown an error, but it didn't"
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving existing NAPTR records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		port, _ := startTestDNSServer(t)
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			const resolveResults = await dns.resolve(
+				"` + testDomain + `",
+				"` + RecordTypeNAPTR.String() + `",
+				"127.0.0.1:` + port + `"
+			);
+		
+			if (resolveResults.length === 0) {
+				throw "Resolving ` + testDomain + ` NAPTR against test nameserver returned no results, expected at least one NAPTR record"
+			}
+
+			const expected = '` + primaryTestNAPTR + `';
+			if (resolveResults[0] !== expected) {
+				throw "Resolving ` + testDomain + ` NAPTR against test nameserver returned unexpected result, expected '" + expected + "', got " + resolveResults[0]
+			}
+		`
+
+		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
+		assert.NoError(t, err)
+	})
+
+	t.Run("Resolving non-existing NAPTR records against test nameserver should succeed", func(t *testing.T) {
+		t.Parallel()
+
+		port, _ := startTestDNSServer(t)
+
+		runtime, err := newConfiguredRuntime(t)
+		require.NoError(t, err)
+
+		runtime.MoveToVUContext(newTestVUState())
+
+		testScript := `
+			try {
+				const resolvedResults = await dns.resolve(
+					"missing.domain",
+					"` + RecordTypeNAPTR.String() + `",
+					"127.0.0.1:` + port + `"
+				);
+			} catch (err) {
+				if (err.name !== "NonExistingDomain") {
+					throw "Resolving missing.domain NAPTR against test nameserver returned unexpected error, expected NonExistingDomain, got: " + err.name
+				}
+		
+				return
+			}
+		
+			throw "Resolving missing.domain NAPTR against test nameserver should have thrown an error, but it didn't"
 		`
 
 		_, err = runtime.RunOnEventLoop(wrapInAsyncLambda(testScript))
@@ -812,9 +879,9 @@ func wrapInAsyncLambda(input string) string {
 }
 
 // startTestDNSServer starts small UDP DNS servers on random ports of
-// 127.0.0.1 and [::1] sharing the same handler — they answer A/AAAA/TXT queries
-// for testDomain with the test IPs and TXT records, and return NXDOMAIN for anything else.
-// Both listeners shut down via t.Cleanup.
+// 127.0.0.1 and [::1] sharing the same handler — they answer A/AAAA/TXT/NAPTR
+// queries for testDomain with the test IPs and records, and return NXDOMAIN for
+// anything else. Both listeners shut down via t.Cleanup.
 //
 // In-process via miekg/dns; no Docker dependency, works identically on every
 // platform that has loopback (which is every platform).
@@ -822,9 +889,10 @@ func startTestDNSServer(t *testing.T) (ipv4Port, ipv6Port string) {
 	t.Helper()
 
 	records := map[uint16][]string{
-		miekgdns.TypeA:    {primaryTestIPv4, secondaryTestIPv4},
-		miekgdns.TypeAAAA: {primaryTestIPv6, secondaryTestIPv6},
-		miekgdns.TypeTXT:  {primaryTestTXT},
+		miekgdns.TypeA:     {primaryTestIPv4, secondaryTestIPv4},
+		miekgdns.TypeAAAA:  {primaryTestIPv6, secondaryTestIPv6},
+		miekgdns.TypeTXT:   {primaryTestTXT},
+		miekgdns.TypeNAPTR: {primaryTestNAPTR},
 	}
 
 	handler := miekgdns.HandlerFunc(func(w miekgdns.ResponseWriter, r *miekgdns.Msg) {
@@ -844,6 +912,16 @@ func startTestDNSServer(t *testing.T) (ipv4Port, ipv6Port string) {
 					m.Answer = append(m.Answer, &miekgdns.AAAA{Hdr: hdr, AAAA: net.ParseIP(addr).To16()})
 				case miekgdns.TypeTXT:
 					m.Answer = append(m.Answer, &miekgdns.TXT{Hdr: hdr, Txt: []string{addr}})
+				case miekgdns.TypeNAPTR:
+					m.Answer = append(m.Answer, &miekgdns.NAPTR{
+						Hdr:         hdr,
+						Order:       100,
+						Preference:  10,
+						Flags:       "U",
+						Service:     "E2U+sip",
+						Regexp:      "!^.*$!sip:customer-service@example.com!",
+						Replacement: ".",
+					})
 				}
 			}
 		}
