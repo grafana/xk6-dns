@@ -126,6 +126,8 @@ func (r *Client) Resolve(
 			results = append(results, t.AAAA.String())
 		case *dns.TXT:
 			results = append(results, strings.Join(t.Txt, ""))
+		case *dns.NAPTR:
+			results = append(results, fmtNAPTRAnswer(t))
 		default:
 			return nil, fmt.Errorf(
 				"resolve operation failed with %w: unhandled DNS answer type %T",
@@ -281,4 +283,11 @@ func (r *Client) ensureK6Client() (err error) {
 	})
 
 	return err
+}
+
+// fmtNAPTRAnswer formats a NAPTR answer in DNS presentation format (rdata only).
+func fmtNAPTRAnswer(answer *dns.NAPTR) string {
+	return fmt.Sprintf("%d %d %q %q %q %s",
+		answer.Order, answer.Preference,
+		answer.Flags, answer.Service, answer.Regexp, answer.Replacement)
 }
