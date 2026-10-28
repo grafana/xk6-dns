@@ -25,7 +25,7 @@ xk6 build --with github.com/grafana/xk6-dns
 
 ### Example k6 script
 
-From there we can use the bustom built binary to run the following example script:
+From there we can use the custom built binary to run the following example script:
 
 ```javascript
 import dns from 'k6/x/dns';
@@ -43,6 +43,10 @@ export default async function() {
     // Request the TXT records for k6.io from the selected nameserver.
     const txtRecords = await dns.resolve('k6.io', 'TXT', '9.9.9.9:53');
     console.log(`k6.io TXT records: ${txtRecords}`);
+
+    // Request NAPTR records (for example ENUM lookups) from the selected nameserver.
+    const naptrRecords = await dns.resolve('1.2.3.4.e164.arpa', 'NAPTR', '9.9.9.9:53');
+    console.log(`NAPTR records: ${naptrRecords}`);
     
     // Lookup the IP address of k6.io using the system's default DNS server.
     const lookupIP = await dns.lookup('k6.io');
@@ -85,9 +89,9 @@ default ✓ [======================================] 10 VUs  00m00.2s/10m0s  200
 
 ### `dns.resolve(query, recordType, options)`
 
-Resolves a DNS query using the provided DNS server. It returns an array of results: IP addresses for `A`/`AAAA` records, or strings for `TXT` records.
+Resolves a DNS query using the provided DNS server. It returns an array of results: IP addresses for `A`/`AAAA` records, or strings for `TXT`/`NAPTR` records.
 
-The `query` parameter is the DNS name to resolve, the `recordType` parameter is the type of DNS record to query for (e.g. 'A', 'AAAA', 'TXT'), and the `options` parameter is an object that can contain the following properties:
+The `query` parameter is the DNS name to resolve, the `recordType` parameter is the type of DNS record to query for (e.g. 'A', 'AAAA', 'TXT', 'NAPTR'), and the `options` parameter is an object that can contain the following properties:
 - `nameserver` - the IP address and port of the DNS server to query. It should be in the format `ip:port`. If not provided, the system's default DNS server will be used.
 
 Using the `dns.resolve()` operation will emit the following metrics:
