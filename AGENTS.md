@@ -57,3 +57,4 @@ Follow these steps to strike a release.
        - v1.1.2
        - vX.Y.Z # new version goes here
    ```
+- Security issues should be reported via [Grafana's security issue reporting page](https://grafana.com/legal/report-a-security-issue/) and not directly in this repository.
